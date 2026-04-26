@@ -1,0 +1,24 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('leases', function (Blueprint $table) {
+            $table->unsignedTinyInteger('payment_day')->nullable()->after('security_deposit');
+            $table->enum('payment_frequency', ['monthly', 'weekly', 'bi-weekly', 'quarterly', 'annually'])->default('monthly')->after('payment_day');
+            $table->unsignedInteger('lease_expiry_reminder_days')->nullable()->after('payment_frequency');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('leases', function (Blueprint $table) {
+            $table->dropColumn(['payment_day', 'payment_frequency', 'lease_expiry_reminder_days']);
+        });
+    }
+};

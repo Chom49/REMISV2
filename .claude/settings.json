@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "c:\\Users\\Admin\\.claude\\projects\\c--xampp-htdocs-RemisV2\\memory"
+    ],
+    "allow": [
+      "Bash(composer update *)"
+    ]
+  }
+}
