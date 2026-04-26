@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(composer update *)",
+      "PowerShell(cmd /c \"mklink /J C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\.claude C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\Remis_config\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "PowerShell(cmd /c \"rmdir C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\.claude\")",
+      "PowerShell(Rename-Item -Path \"C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\Remis_config\" -NewName \"remisConfig\")",
+      "PowerShell(cmd /c \"mklink /J C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\.claude C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\remisConfig\")",
+      "Bash(git rm *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Admin\\.claude\\projects\\c--xampp-htdocs-RemisV2\\memory",
+      "C:\\xampp\\htdocs\\RemisV2\\.claude"
+    ]
+  }
+}
