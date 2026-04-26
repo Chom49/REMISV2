@@ -77,7 +77,7 @@
                     Rental Management Made Simple
                 </span>
 
-                <h1 class="text-4xl sm:text-5xl lg:text-4xl font-extrabold text-primary-900 leading-tight mb-6">
+                <h1 class="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-primary-900 leading-tight mb-6">
                    Real Estate <span class="text-primary-600">Management</span><br>Information System
                 </h1>
 
