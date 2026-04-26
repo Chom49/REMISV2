@@ -16,7 +16,16 @@
       "Bash(php -r ' *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/login)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/register)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/)",
+      "Read(//c/xampp//**)",
+      "Bash(/c/xampp/php/php.exe --version)",
+      "Bash(where php *)",
+      "Read(//c/Users/Admin/Downloads/php-8.4.7-Win32-vs17-x64//**)",
+      "Bash(git add *)"
+    ],
+    "additionalDirectories": [
+      "c:\\xampp\\apache\\conf\\extra",
+      "C:\\Users\\Admin\\Downloads\\php-8.4.7-Win32-vs17-x64"
     ]
   }
 }
