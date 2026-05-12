@@ -20,11 +20,11 @@
     <div class="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex min-h-[560px]">
 
     {{-- ══════════════ LEFT — FORM ══════════════ --}}
-    <div class="w-full lg:w-[50%] bg-primary-100 flex items-center justify-center px-8 sm:px-12 py-12">
+    <div class="w-full lg:w-[50%] bg-primary-100 flex items-center justify-center px-8 sm:px-12 py-8">
         <div class="w-full max-w-sm">
 
             {{-- Heading --}}
-            <h1 class="text-4xl font-extrabold text-gray-900 leading-tight mb-10">
+            <h1 class="text-4xl font-extrabold text-gray-900 leading-tight mb-6">
                 Sign In to<br>Your Account
             </h1>
 
@@ -70,7 +70,7 @@
                 </button>
             </form>
 
-            <p class="mt-7 text-center text-sm text-gray-600">
+            <p class="mt-5 text-center text-sm text-gray-600">
                 Don't have an account?
                 <a href="{{ route('register') }}" class="text-primary-700 font-semibold hover:underline">Register Now</a>
             </p>
@@ -78,17 +78,17 @@
     </div>
 
     {{-- ══════════════ RIGHT — BRANDING ══════════════ --}}
-    <div class="hidden lg:flex flex-1 bg-white flex-col items-center justify-center px-12 py-12 text-center">
+    <div class="hidden lg:flex flex-1 bg-white flex-col items-center justify-center px-12 py-8 text-center">
 
         {{-- Illustration --}}
         <img src="{{ asset('images/signIn/signIn.png') }}" alt="Welcome illustration"
-             class="w-44 h-44 object-contain mb-8">
+             class="w-44 h-44 object-contain mb-5">
 
-        <h2 class="text-3xl font-extrabold text-gray-900 uppercase tracking-wide mb-5">
+        <h2 class="text-3xl font-extrabold text-gray-900 uppercase tracking-wide mb-3">
             Glad To See You !
         </h2>
 
-        <p class="text-gray-500 text-sm leading-7 max-w-xs mb-8">
+        <p class="text-gray-500 text-sm leading-7 max-w-xs mb-5">
             Managing properties doesn't have to be complicated.<br>
             Our platform gives you smart tools to stay organized<br>
             and in control
@@ -97,7 +97,7 @@
         {{-- Sign Up CTA --}}
         <a href="{{ route('register') }}"
            class="bg-primary-500 hover:bg-primary-600 text-white font-semibold
-                  px-12 py-3 rounded-full transition-colors duration-200 mb-9">
+                  px-12 py-3 rounded-full transition-colors duration-200 mb-5">
             Sign Up
         </a>
 

@@ -8,11 +8,14 @@
       "PowerShell(cmd /c \"rmdir C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\.claude\")",
       "PowerShell(Rename-Item -Path \"C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\Remis_config\" -NewName \"remisConfig\")",
       "PowerShell(cmd /c \"mklink /J C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\.claude C:\\\\xampp\\\\htdocs\\\\RemisV2\\\\remisConfig\")",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(/c/xampp/apache/bin/httpd.exe -t)",
+      "PowerShell(cd \"c:\\\\xampp\\\\htdocs\\\\RemisV2\"; php artisan tinker --execute=\"Mail::raw\\('REMIS test ' . date\\('H:i:s'\\), fn\\(m\\) => m->to\\('kilindidc0@gmail.com'\\)->subject\\('REMIS SMTP Test'\\)\\);\" 2>&1; echo \"Exit: $LASTEXITCODE\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Admin\\.claude\\projects\\c--xampp-htdocs-RemisV2\\memory",
-      "C:\\xampp\\htdocs\\RemisV2\\.claude"
+      "C:\\xampp\\htdocs\\RemisV2\\.claude",
+      "C:\\xampp\\htdocs\\RemisV2"
     ]
   }
 }

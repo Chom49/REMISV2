@@ -6,13 +6,15 @@ use App\Mail\TenantInvitation;
 use App\Models\Lease;
 use App\Models\Payment;
 use App\Models\Property;
+use App\Models\Unit;
 use App\Models\User;
 use App\Models\MaintenanceRequest;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class LandlordController extends Controller
@@ -22,22 +24,21 @@ class LandlordController extends Controller
     public function dashboard()
     {
         $landlord   = Auth::user();
-        $properties = Property::where('landlord_id', $landlord->id)->with('activeLease.tenant')->get();
+        $properties = Property::where('landlord_id', $landlord->id)->with('activeLease.tenant', 'units')->get();
 
-        $totalRevenue   = Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlord->id))
-                                  ->where('status', 'paid')->sum('amount');
+        $totalRevenue  = Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlord->id))
+                                 ->where('status', 'paid')->sum('amount');
 
-        $upcomingRent   = Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlord->id))
-                                  ->where('status', 'pending')
-                                  ->where('due_date', '>=', now())
-                                  ->sum('amount');
+        $upcomingRent  = Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlord->id))
+                                 ->where('status', 'pending')
+                                 ->where('due_date', '>=', now())
+                                 ->sum('amount');
 
-        $overdueAmount  = Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlord->id))
-                                  ->where('status', 'overdue')->sum('amount');
+        $overdueAmount = Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlord->id))
+                                 ->where('status', 'overdue')->sum('amount');
 
-        // Collection stats for current month
-        $monthStart = now()->startOfMonth();
-        $monthEnd   = now()->endOfMonth();
+        $monthStart    = now()->startOfMonth();
+        $monthEnd      = now()->endOfMonth();
         $monthPayments = Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlord->id))
                                  ->whereBetween('due_date', [$monthStart, $monthEnd])
                                  ->get();
@@ -58,7 +59,6 @@ class LandlordController extends Controller
             'collection_rate'  => $collectionRate,
         ];
 
-        // Chart data: income & expenses for last 6 months
         $chartData = $this->buildChartData($landlord->id);
 
         $maintenanceRequests = MaintenanceRequest::whereHas('property', fn($q) => $q->where('landlord_id', $landlord->id))
@@ -80,16 +80,15 @@ class LandlordController extends Controller
         $expenses = [];
 
         for ($i = 5; $i >= 0; $i--) {
-            $date  = now()->subMonths($i);
-            $start = $date->copy()->startOfMonth();
-            $end   = $date->copy()->endOfMonth();
-
-            $months[]   = $date->format('M');
-            $income[]   = (float) Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlordId))
-                                          ->where('status', 'paid')
-                                          ->whereBetween('paid_date', [$start, $end])
-                                          ->sum('amount');
-            $expenses[] = 0; // Placeholder – extend when expenses table is added
+            $date     = now()->subMonths($i);
+            $start    = $date->copy()->startOfMonth();
+            $end      = $date->copy()->endOfMonth();
+            $months[] = $date->format('M');
+            $income[] = (float) Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlordId))
+                                        ->where('status', 'paid')
+                                        ->whereBetween('paid_date', [$start, $end])
+                                        ->sum('amount');
+            $expenses[] = 0;
         }
 
         return compact('months', 'income', 'expenses');
@@ -100,7 +99,9 @@ class LandlordController extends Controller
     public function propertiesIndex()
     {
         $landlord   = Auth::user();
-        $properties = Property::where('landlord_id', $landlord->id)->with('activeLease.tenant')->get();
+        $properties = Property::where('landlord_id', $landlord->id)
+                               ->with('activeLease.tenant', 'units')
+                               ->get();
 
         $stats = [
             'total'    => $properties->count(),
@@ -118,34 +119,197 @@ class LandlordController extends Controller
 
     public function storeProperty(Request $request)
     {
-        $validated = $request->validate([
-            'name'        => 'required|string|max:255',
-            'address'     => 'required|string|max:255',
-            'city'        => 'nullable|string|max:100',
-            'county'      => 'nullable|string|max:100',
-            'total_area'  => 'nullable|numeric|min:0',
-            'type'        => 'required|in:apartment,house,condo,studio,commercial',
-            'bedrooms'    => 'required|integer|min:0',
-            'bathrooms'   => 'required|integer|min:1',
-            'rent_amount' => 'required|numeric|min:0',
-            'description' => 'nullable|string',
-        ]);
+        $category    = $request->input('property_category');
+        $floorLayout = $request->input('floor_layout');
 
-        $validated['landlord_id'] = Auth::id();
-        $property = Property::create($validated);
+        $rules = [
+            'name'              => 'required|string|max:255',
+            'address'           => 'required|string|max:255',
+            'city'              => 'nullable|string|max:100',
+            'county'            => 'nullable|string|max:100',
+            'total_area'        => 'nullable|numeric|min:0',
+            'property_category' => 'required|in:single,multi',
+            'image'             => 'nullable|image|mimes:jpeg,png,jpg,webp|max:4096',
+        ];
 
+        if ($category === 'multi') {
+            $rules['floor_layout'] = 'required|in:single_floor,multi_floor';
+
+            if ($floorLayout === 'single_floor') {
+                $rules['number_of_units'] = 'required|integer|min:1|max:500';
+                $rules['unit_prefix']     = 'nullable|string|max:30';
+            } else {
+                $rules['num_floors']              = 'required|integer|min:1|max:50';
+                $rules['floor_configs']           = 'required|array|min:1';
+                $rules['floor_configs.*.name']    = 'required|string|max:100';
+                $rules['floor_configs.*.count']   = 'required|integer|min:1|max:200';
+            }
+        }
+
+        $validated = $request->validate($rules);
+
+        $propertyData = [
+            'landlord_id'       => Auth::id(),
+            'name'              => $validated['name'],
+            'address'           => $validated['address'],
+            'city'              => $validated['city'] ?? null,
+            'county'            => $validated['county'] ?? null,
+            'total_area'        => $validated['total_area'] ?? null,
+            'property_category' => $category,
+            'floor_layout'      => $category === 'multi' ? $floorLayout : null,
+            'type'              => 'apartment',
+            'bedrooms'          => 0,
+            'bathrooms'         => 1,
+            'status'            => 'available',
+        ];
+
+        if ($request->hasFile('image')) {
+            $propertyData['image'] = $request->file('image')->store('properties', 'public');
+        }
+
+        $property = Property::create($propertyData);
+
+        $units = [];
+        $now   = now();
+
+        if ($category === 'single') {
+            $units[] = [
+                'property_id'  => $property->id,
+                'floor_number' => null,
+                'unit_number'  => 'Unit 1',
+                'status'       => 'vacant',
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ];
+        } elseif ($floorLayout === 'single_floor') {
+            $count  = (int) ($validated['number_of_units'] ?? 1);
+            $prefix = trim($validated['unit_prefix'] ?? '') ?: 'Unit';
+            $property->update(['number_of_units' => $count]);
+
+            for ($i = 1; $i <= $count; $i++) {
+                $units[] = [
+                    'property_id'  => $property->id,
+                    'floor_number' => null,
+                    'unit_number'  => "{$prefix} {$i}",
+                    'status'       => 'vacant',
+                    'created_at'   => $now,
+                    'updated_at'   => $now,
+                ];
+            }
+        } else {
+            // multi_floor — auto-generate: Floor 1 → A1,A2… Floor 2 → B1,B2… etc.
+            $totalUnits   = 0;
+            $letterOffset = 0;
+            foreach ($validated['floor_configs'] as $floor) {
+                $floorName = trim($floor['name']);
+                $count     = (int) $floor['count'];
+                $letter    = chr(65 + $letterOffset);
+                for ($i = 1; $i <= $count; $i++) {
+                    $units[] = [
+                        'property_id'  => $property->id,
+                        'floor_number' => $floorName,
+                        'unit_number'  => "{$letter}{$i}",
+                        'status'       => 'vacant',
+                        'created_at'   => $now,
+                        'updated_at'   => $now,
+                    ];
+                    $totalUnits++;
+                }
+                $letterOffset++;
+            }
+            $property->update(['number_of_units' => $totalUnits]);
+        }
+
+        Unit::insert($units);
+
+        $unitCount = count($units);
         return redirect()->route('landlord.properties.show', $property)
-                         ->with('success', 'Property added successfully.');
+                         ->with('success', "Property created with {$unitCount} unit(s). Start by creating a lease on any vacant unit.");
     }
 
     public function propertiesShow(Property $property)
     {
         $this->authorizeProperty($property);
-        $property->load('activeLease.tenant');
 
-        $tenants = User::where('role', 'tenant')->get();
+        $property->load([
+            'units.activeLease.tenant',
+            'units.leases.tenant',
+            'leases.unit',
+            'leases.tenant',
+            'maintenanceRequests.tenant',
+        ]);
 
-        return view('landlord.properties.show', compact('property', 'tenants'));
+        $tenants = User::where('role', 'tenant')
+                       ->where(function ($q) {
+                           $q->where('landlord_id', Auth::id())
+                             ->orWhereHas('leasesAsTenant', fn($q2) => $q2->whereHas('property', fn($q3) => $q3->where('landlord_id', Auth::id())));
+                       })
+                       ->get();
+
+        $allTenants = User::where('role', 'tenant')->get();
+
+        $activeTab = request('tab', 'overview');
+
+        return view('landlord.properties.show', compact('property', 'tenants', 'allTenants', 'activeTab'));
+    }
+
+    // ─────────────────────── UNITS ────────────────────────────
+
+    public function unitLeaseCreate(Property $property, Unit $unit)
+    {
+        $this->authorizeProperty($property);
+        abort_if($unit->property_id !== $property->id, 404);
+
+        return view('landlord.units.lease-create', compact('property', 'unit'));
+    }
+
+    public function unitLeaseStore(Request $request, Property $property, Unit $unit)
+    {
+        $this->authorizeProperty($property);
+        abort_if($unit->property_id !== $property->id, 404);
+
+        $validated = $request->validate([
+            'start_date'                 => 'required|date',
+            'end_date'                   => 'required|date|after:start_date',
+            'monthly_rent'               => 'required|numeric|min:0',
+            'security_deposit'           => 'nullable|numeric|min:0',
+            'payment_day'                => 'nullable|integer|min:1|max:31',
+            'payment_frequency'          => 'required|in:monthly,weekly,bi-weekly,quarterly,annually',
+            'lease_expiry_reminder_days' => 'nullable|integer|min:0|max:365',
+            'lease_terms'                => 'nullable|string',
+        ]);
+
+        $validated['property_id']      = $property->id;
+        $validated['unit_id']          = $unit->id;
+        $validated['landlord_id']      = Auth::id();
+        $validated['tenant_id']        = null;
+        $validated['status']           = 'active';
+        $validated['security_deposit'] = $validated['security_deposit'] ?? 0;
+
+        $lease = Lease::create($validated);
+
+        $property->update(['status' => 'occupied']);
+
+        return redirect()
+            ->route('landlord.properties.show', [$property, 'tab' => 'units'])
+            ->with('success', 'Lease created for unit ' . $unit->unit_number . '. Now assign a tenant.')
+            ->with('open_assign_tenant', $lease->id);
+    }
+
+    public function unitLeaseAssignTenant(Request $request, Property $property, Unit $unit, Lease $lease)
+    {
+        $this->authorizeProperty($property);
+        abort_if($unit->property_id !== $property->id, 404);
+        abort_if($lease->unit_id !== $unit->id, 404);
+
+        $request->validate(['tenant_id' => 'required|exists:users,id']);
+
+        $lease->update(['tenant_id' => $request->tenant_id]);
+        $unit->update(['status' => 'occupied']);
+
+        return redirect()
+            ->route('landlord.properties.show', [$property, 'tab' => 'units'])
+            ->with('success', 'Tenant assigned to unit ' . $unit->unit_number . '.');
     }
 
     // ─────────────────────── LEASES ───────────────────────────
@@ -153,7 +317,6 @@ class LandlordController extends Controller
     public function leasesCreate(Property $property)
     {
         $this->authorizeProperty($property);
-
         return view('landlord.leases.create', compact('property'));
     }
 
@@ -171,14 +334,13 @@ class LandlordController extends Controller
             'lease_expiry_reminder_days'  => 'nullable|integer|min:0|max:365',
         ]);
 
-        $validated['property_id']       = $property->id;
-        $validated['landlord_id']       = Auth::id();
-        $validated['tenant_id']         = null;
-        $validated['status']            = 'active';
-        $validated['security_deposit']  = $validated['security_deposit'] ?? 0;
+        $validated['property_id']      = $property->id;
+        $validated['landlord_id']      = Auth::id();
+        $validated['tenant_id']        = null;
+        $validated['status']           = 'active';
+        $validated['security_deposit'] = $validated['security_deposit'] ?? 0;
 
         Lease::create($validated);
-
         $property->update(['status' => 'occupied']);
 
         return redirect()->route('landlord.properties.show', $property)
@@ -186,14 +348,12 @@ class LandlordController extends Controller
                          ->with('open_link_tenant', true);
     }
 
-    // ─────────────────────── LEASES INDEX ─────────────────────
-
     public function leasesIndex()
     {
         $landlordId = Auth::id();
 
         $leases = Lease::where('landlord_id', $landlordId)
-            ->with('property', 'tenant')
+            ->with('property', 'unit', 'tenant')
             ->orderByRaw("FIELD(status,'active','pending','expired','terminated')")
             ->latest()
             ->get();
@@ -201,14 +361,14 @@ class LandlordController extends Controller
         $today = now()->startOfDay();
 
         $stats = [
-            'total'          => $leases->count(),
-            'active'         => $leases->where('status', 'active')->count(),
-            'expiring_soon'  => $leases->filter(fn($l) =>
+            'total'         => $leases->count(),
+            'active'        => $leases->where('status', 'active')->count(),
+            'expiring_soon' => $leases->filter(fn($l) =>
                 $l->status === 'active' &&
                 $l->end_date >= $today &&
                 $l->end_date <= $today->copy()->addDays(30)
             )->count(),
-            'expired'        => $leases->filter(fn($l) =>
+            'expired'       => $leases->filter(fn($l) =>
                 $l->status === 'active' && $l->end_date < $today
             )->count(),
         ];
@@ -216,7 +376,108 @@ class LandlordController extends Controller
         return view('landlord.leases.index', compact('leases', 'stats'));
     }
 
-    // ─────────────────────── LINK TENANT ──────────────────────
+    public function terminateLease(Request $request, Lease $lease)
+    {
+        abort_if($lease->landlord_id !== Auth::id(), 403);
+
+        $request->validate([
+            'termination_reason' => 'required|string|max:100',
+            'termination_notes'  => 'nullable|string|max:2000',
+        ]);
+
+        $lease->update([
+            'status'             => 'terminated',
+            'termination_reason' => $request->termination_reason,
+            'termination_notes'  => $request->termination_notes,
+            'terminated_at'      => now(),
+        ]);
+
+        // Free up the unit
+        if ($lease->unit) {
+            $lease->unit->update(['status' => 'vacant']);
+        }
+
+        // Free up the property if no other active leases remain
+        $otherActive = Lease::where('property_id', $lease->property_id)
+                            ->where('id', '!=', $lease->id)
+                            ->where('status', 'active')
+                            ->exists();
+        if (!$otherActive && $lease->property) {
+            $lease->property->update(['status' => 'available']);
+        }
+
+        // Set tenant inactive if no other active leases
+        if ($lease->tenant_id) {
+            $hasOtherActive = Lease::where('tenant_id', $lease->tenant_id)
+                                   ->where('id', '!=', $lease->id)
+                                   ->where('status', 'active')
+                                   ->exists();
+            if (!$hasOtherActive) {
+                $lease->tenant->update(['tenant_status' => 'inactive']);
+            }
+        }
+
+        return back()->with('success', 'Lease terminated. Unit is now vacant.');
+    }
+
+    public function renewLease(Request $request, Lease $lease)
+    {
+        abort_if($lease->landlord_id !== Auth::id(), 403);
+
+        $request->validate([
+            'end_date'     => 'required|date|after:' . $lease->end_date->format('Y-m-d'),
+            'monthly_rent' => 'nullable|numeric|min:0',
+            'lease_terms'  => 'nullable|string',
+        ]);
+
+        // Mark old lease as renewed
+        $lease->update(['status' => 'renewed']);
+
+        // Create new lease as continuation
+        $newLease = Lease::create([
+            'property_id'                => $lease->property_id,
+            'unit_id'                    => $lease->unit_id,
+            'tenant_id'                  => $lease->tenant_id,
+            'landlord_id'                => $lease->landlord_id,
+            'start_date'                 => $lease->end_date->copy()->addDay(),
+            'end_date'                   => $request->end_date,
+            'monthly_rent'               => $request->monthly_rent ?? $lease->monthly_rent,
+            'security_deposit'           => $lease->security_deposit,
+            'payment_day'                => $lease->payment_day,
+            'payment_frequency'          => $lease->payment_frequency,
+            'lease_expiry_reminder_days' => $lease->lease_expiry_reminder_days,
+            'lease_terms'                => $request->lease_terms ?? $lease->lease_terms,
+            'status'                     => 'active',
+            'renewal_of_id'              => $lease->id,
+        ]);
+
+        return back()->with('success', 'Lease renewed successfully. New contract is active until ' . \Carbon\Carbon::parse($request->end_date)->format('d M Y') . '.');
+    }
+
+    public function leasesShow(Lease $lease)
+    {
+        abort_if($lease->landlord_id !== Auth::id(), 403);
+        $lease->load('property', 'unit', 'tenant', 'landlord', 'payments');
+        return view('landlord.leases.show', compact('lease'));
+    }
+
+    public function leasesDownload(Lease $lease)
+    {
+        abort_if($lease->landlord_id !== Auth::id(), 403);
+        $lease->load('property', 'unit', 'tenant', 'landlord');
+
+        $pdf = Pdf::loadView('landlord.leases.pdf', compact('lease'))
+                  ->setPaper('a4', 'portrait')
+                  ->setOption('defaultFont', 'sans-serif')
+                  ->setOption('isRemoteEnabled', false)
+                  ->setOption('isHtml5ParserEnabled', true);
+
+        $filename = 'lease-contract-' . ($lease->unit?->unit_number ?? $lease->id) . '-' . now()->format('Ymd') . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    // ─────────────────────── LINK TENANT (legacy) ─────────────
 
     public function linkTenant(Request $request, Property $property)
     {
@@ -232,9 +493,7 @@ class LandlordController extends Controller
         $property->update(['status' => 'occupied']);
 
         return redirect()->route('landlord.properties.show', $property)
-                         ->with('success', 'Tenant linked successfully.')
-                         ->with('show_invite', true)
-                         ->with('invited_tenant_id', $request->tenant_id);
+                         ->with('success', 'Tenant linked successfully.');
     }
 
     // ─────────────────────── TENANTS ──────────────────────────
@@ -245,46 +504,161 @@ class LandlordController extends Controller
         $propertyIds = $landlord->properties()->pluck('id');
 
         $tenants = User::where('role', 'tenant')
-                       ->whereHas('leasesAsTenant', fn($q) => $q->whereIn('property_id', $propertyIds))
-                       ->with(['leasesAsTenant' => fn($q) => $q->whereIn('property_id', $propertyIds)->with('property')])
+                       ->where(function ($q) use ($propertyIds, $landlord) {
+                           $q->whereHas('leasesAsTenant', fn($q) => $q->whereIn('property_id', $propertyIds))
+                             ->orWhere('landlord_id', $landlord->id);
+                       })
+                       ->with([
+                           'leasesAsTenant' => fn($q) => $q->whereIn('property_id', $propertyIds)
+                                                           ->with('property', 'unit')
+                                                           ->latest(),
+                           'payments' => fn($q) => $q->latest()->limit(1),
+                       ])
                        ->get();
 
-        return view('landlord.tenants.index', compact('tenants'));
+        $stats = [
+            'total'          => $tenants->count(),
+            'active'         => $tenants->filter(fn($t) => $t->leasesAsTenant->firstWhere('status', 'active') !== null)->count(),
+            'inactive'       => $tenants->filter(fn($t) => $t->leasesAsTenant->firstWhere('status', 'active') === null)->count(),
+            'expiring_soon'  => $tenants->filter(function ($t) {
+                $lease = $t->leasesAsTenant->firstWhere('status', 'active');
+                if (!$lease) return false;
+                $days = now()->startOfDay()->diffInDays($lease->end_date, false);
+                return $days >= 0 && $days <= 30;
+            })->count(),
+        ];
+
+        return view('landlord.tenants.index', compact('tenants', 'stats'));
+    }
+
+    public function tenantsShow(User $user)
+    {
+        $landlord    = Auth::user();
+        $propertyIds = $landlord->properties()->pluck('id');
+
+        // Ensure this tenant belongs to this landlord's context
+        $belongsToLandlord = $user->landlord_id === $landlord->id
+            || Lease::where('tenant_id', $user->id)->whereIn('property_id', $propertyIds)->exists();
+        abort_if(!$belongsToLandlord, 403);
+
+        $user->load([
+            'leasesAsTenant' => fn($q) => $q->whereIn('property_id', $propertyIds)
+                                            ->with('property', 'unit')
+                                            ->latest(),
+            'maintenanceRequests.property',
+        ]);
+
+        // SQL aggregates — avoids loading every payment row into memory
+        $totalPaid    = $user->payments()->where('status', 'paid')->sum('amount');
+        $totalOverdue = $user->payments()->where('status', 'overdue')->sum('amount');
+        $pendingCount = $user->payments()->whereIn('status', ['pending', 'overdue'])->count();
+        $payments     = $user->payments()->orderByDesc('due_date')->get();
+
+        return view('landlord.tenants.show', [
+            'tenant'       => $user,
+            'totalPaid'    => $totalPaid,
+            'totalOverdue' => $totalOverdue,
+            'pendingCount' => $pendingCount,
+            'payments'     => $payments,
+        ]);
     }
 
     public function tenantsCreate(Request $request)
     {
         $fromProperty = $request->query('from_property');
-        return view('landlord.tenants.create', compact('fromProperty'));
+        $fromUnit     = $request->query('from_unit');
+        $fromLease    = $request->query('from_lease');
+        return view('landlord.tenants.create', compact('fromProperty', 'fromUnit', 'fromLease'));
     }
 
     public function tenantsStore(Request $request)
     {
-        $validated = $request->validate([
-            'first_name'    => 'required|string|max:100',
-            'last_name'     => 'required|string|max:100',
-            'email'         => 'required|email|unique:users,email',
-            'phone'         => 'nullable|string|max:20',
-            'date_of_birth' => 'nullable|date',
-            'notes'         => 'nullable|string',
-        ]);
+        $mode = $request->input('mode', 'manual');
 
-        $tenant = User::create([
-            'name'     => $validated['first_name'] . ' ' . $validated['last_name'],
-            'email'    => $validated['email'],
-            'phone'    => $validated['phone'] ?? null,
-            'role'     => 'tenant',
-            'password' => Hash::make(\Illuminate\Support\Str::random(16)),
-        ]);
+        $plainPassword = $this->generateSimplePassword();
 
-        $this->sendInvitation($tenant);
+        if ($mode === 'tin') {
+            $validated = $request->validate([
+                'first_name' => 'required|string|max:100',
+                'last_name'  => 'nullable|string|max:100',
+                'tin'        => 'required|string|max:50',
+                'email'      => 'required|email|unique:users,email',
+                'phone'      => 'nullable|string|max:20',
+                'gender'     => 'nullable|in:male,female',
+                'notes'      => 'nullable|string',
+            ]);
 
-        // If coming from a property flow, auto-link and redirect back
-        $fromPropertyId = $request->input('from_property');
-        if ($fromPropertyId) {
-            $property = Property::where('id', $fromPropertyId)
-                                 ->where('landlord_id', Auth::id())
-                                 ->first();
+            $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
+
+            $tenant = User::create([
+                'name'                  => $fullName ?: $validated['first_name'],
+                'email'                 => $validated['email'],
+                'phone'                 => $validated['phone'] ?? null,
+                'gender'                => $validated['gender'] ?? null,
+                'nationality'           => 'Tanzanian',
+                'tin'                   => $validated['tin'],
+                'nida_number'           => null,
+                'role'                  => 'tenant',
+                'password'              => Hash::make($plainPassword),
+                'landlord_id'           => Auth::id(),
+                'force_password_change' => true,
+                'default_password_hint' => $plainPassword,
+                'invitation_status'     => 'invited',
+            ]);
+        } else {
+            $validated = $request->validate([
+                'first_name'    => 'required|string|max:100',
+                'last_name'     => 'required|string|max:100',
+                'email'         => 'required|email|unique:users,email',
+                'phone'         => 'nullable|string|max:20',
+                'date_of_birth' => 'nullable|date',
+                'gender'        => 'nullable|in:male,female',
+                'nationality'   => 'nullable|string|max:100',
+                'tin'           => 'nullable|string|max:50',
+                'nida_number'   => 'nullable|string|max:50',
+                'notes'         => 'nullable|string',
+            ]);
+
+            $tenant = User::create([
+                'name'                  => $validated['first_name'] . ' ' . $validated['last_name'],
+                'email'                 => $validated['email'],
+                'phone'                 => $validated['phone'] ?? null,
+                'gender'                => $validated['gender'] ?? null,
+                'nationality'           => $validated['nationality'] ?? null,
+                'tin'                   => $validated['tin'] ?? null,
+                'nida_number'           => $validated['nida_number'] ?? null,
+                'role'                  => 'tenant',
+                'password'              => Hash::make($plainPassword),
+                'landlord_id'           => Auth::id(),
+                'force_password_change' => true,
+                'default_password_hint' => $plainPassword,
+                'invitation_status'     => 'invited',
+            ]);
+        }
+
+        $this->sendInvitation($tenant, $plainPassword);
+
+        // If coming from a unit lease flow, auto-assign and redirect back
+        $fromLeaseId = $request->input('from_lease');
+        $fromUnitId  = $request->input('from_unit');
+        $fromPropId  = $request->input('from_property');
+
+        if ($fromLeaseId && $fromUnitId && $fromPropId) {
+            $property = Property::where('id', $fromPropId)->where('landlord_id', Auth::id())->first();
+            $unit     = $property ? Unit::where('id', $fromUnitId)->where('property_id', $property->id)->first() : null;
+            $lease    = $unit    ? Lease::where('id', $fromLeaseId)->where('unit_id', $unit->id)->first() : null;
+
+            if ($lease) {
+                $lease->update(['tenant_id' => $tenant->id]);
+                $unit->update(['status' => 'occupied']);
+                return redirect()
+                    ->route('landlord.properties.show', [$property, 'tab' => 'units'])
+                    ->with('success', 'Tenant added, assigned to unit ' . $unit->unit_number . ', and invitation email sent.');
+            }
+        }
+
+        if ($fromPropId) {
+            $property = Property::where('id', $fromPropId)->where('landlord_id', Auth::id())->first();
             if ($property) {
                 $lease = $property->activeLease;
                 if ($lease) {
@@ -292,9 +666,7 @@ class LandlordController extends Controller
                 }
                 $property->update(['status' => 'occupied']);
                 return redirect()->route('landlord.properties.show', $property)
-                                 ->with('success', 'Tenant added and linked to property.')
-                                 ->with('show_invite', true)
-                                 ->with('invited_tenant_id', $tenant->id);
+                                 ->with('success', 'Tenant added, linked to property, and invitation email sent.');
             }
         }
 
@@ -304,17 +676,70 @@ class LandlordController extends Controller
 
     public function tenantInvite(User $user)
     {
-        $this->sendInvitation($user);
-
+        $plainPassword = $this->generateSimplePassword();
+        $user->update([
+            'password'              => Hash::make($plainPassword),
+            'force_password_change' => true,
+            'default_password_hint' => $plainPassword,
+            'invitation_status'     => 'invited',
+        ]);
+        $this->sendInvitation($user, $plainPassword);
         return back()->with('success', 'Invitation email sent to ' . $user->email . '.');
     }
 
-    private function sendInvitation(User $tenant): void
+    public function tenantsEdit(User $user)
     {
-        $token      = Password::broker()->createToken($tenant);
-        $setupUrl   = route('password.setup.show', ['token' => $token, 'email' => $tenant->email]);
+        $landlord    = Auth::user();
+        $propertyIds = $landlord->properties()->pluck('id');
+        $belongsToLandlord = $user->landlord_id === $landlord->id
+            || Lease::where('tenant_id', $user->id)->whereIn('property_id', $propertyIds)->exists();
+        abort_if(!$belongsToLandlord, 403);
 
-        Mail::to($tenant->email)->send(new TenantInvitation($tenant, $setupUrl));
+        return view('landlord.tenants.edit', compact('user'));
+    }
+
+    public function tenantsUpdate(Request $request, User $user)
+    {
+        $landlord    = Auth::user();
+        $propertyIds = $landlord->properties()->pluck('id');
+        $belongsToLandlord = $user->landlord_id === $landlord->id
+            || Lease::where('tenant_id', $user->id)->whereIn('property_id', $propertyIds)->exists();
+        abort_if(!$belongsToLandlord, 403);
+
+        $validated = $request->validate([
+            'first_name'  => 'required|string|max:100',
+            'last_name'   => 'required|string|max:100',
+            'phone'       => 'nullable|string|max:20',
+            'gender'      => 'nullable|in:male,female',
+            'nationality' => 'nullable|string|max:100',
+        ]);
+
+        $user->update([
+            'name'        => $validated['first_name'] . ' ' . $validated['last_name'],
+            'phone'       => $validated['phone'] ?? null,
+            'gender'      => $validated['gender'] ?? null,
+            'nationality' => $validated['nationality'] ?? null,
+        ]);
+
+        return redirect()->route('landlord.tenants.show', $user)
+                         ->with('success', 'Tenant profile updated.');
+    }
+
+    /**
+     * Generate a simple, human-friendly default password.
+     * Format: Remis@{4 random digits}  e.g. Remis@4729
+     * Satisfies uppercase + lowercase + special char + number requirements.
+     */
+    private function generateSimplePassword(): string
+    {
+        return 'Remis@' . random_int(1000, 9999);
+    }
+
+    private function sendInvitation(User $tenant, string $plainPassword): void
+    {
+        $loginUrl = rtrim(url('/'), '/') . '/#login';
+        Mail::to($tenant->email)
+            ->send(new TenantInvitation($tenant, $plainPassword, $loginUrl));
     }
 
     // ─────────────────────── MAINTENANCE ─────────────────────
@@ -325,9 +750,9 @@ class LandlordController extends Controller
         $base = MaintenanceRequest::whereHas('property', fn($q) => $q->where('landlord_id', $landlordId))
                                    ->with('property', 'tenant');
 
-        $new       = (clone $base)->where('status', 'open')->latest()->get();
-        $inProgress= (clone $base)->where('status', 'in_progress')->latest()->get();
-        $completed = (clone $base)->whereIn('status', ['resolved', 'closed'])->latest()->get();
+        $new        = (clone $base)->where('status', 'open')->latest()->get();
+        $inProgress = (clone $base)->where('status', 'in_progress')->latest()->get();
+        $completed  = (clone $base)->whereIn('status', ['resolved', 'closed'])->latest()->get();
 
         $properties = Property::where('landlord_id', $landlordId)->get();
 
@@ -347,7 +772,6 @@ class LandlordController extends Controller
         ]);
 
         $this->authorizeProperty(Property::findOrFail($validated['property_id']));
-
         MaintenanceRequest::create($validated);
 
         return back()->with('success', 'Maintenance request created.');
@@ -356,7 +780,6 @@ class LandlordController extends Controller
     public function maintenanceUpdate(Request $request, MaintenanceRequest $maintenanceRequest)
     {
         $this->authorizeProperty($maintenanceRequest->property);
-
         $request->validate(['status' => 'required|in:open,in_progress,resolved,closed']);
         $maintenanceRequest->update(['status' => $request->status]);
 
@@ -366,7 +789,6 @@ class LandlordController extends Controller
     public function maintenanceDestroy(MaintenanceRequest $maintenanceRequest)
     {
         $this->authorizeProperty($maintenanceRequest->property);
-
         $maintenanceRequest->delete();
 
         return back()->with('success', 'Maintenance request removed.');

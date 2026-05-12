@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\MaintenanceRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class TenantController extends Controller
 {
@@ -77,6 +78,48 @@ class TenantController extends Controller
 
         return redirect()->route('tenant.payments.history')
                          ->with('success', 'Payment of Tzs ' . number_format($payment->amount, 0) . ' processed successfully.');
+    }
+
+    // ─────────────────────── PASSWORD CHANGE ─────────────────
+
+    public function changePasswordShow()
+    {
+        return view('tenant.change-password');
+    }
+
+    public function changePasswordUpdate(Request $request)
+    {
+        $tenant = Auth::user();
+
+        $request->validate([
+            'current_password' => ['required', function ($attr, $value, $fail) use ($tenant) {
+                if (! Hash::check($value, $tenant->password)) {
+                    $fail('The current password you entered is incorrect.');
+                }
+            }],
+            'password' => [
+                'required', 'string', 'min:8', 'confirmed',
+                'different:current_password',
+                'regex:/[A-Z]/',
+                'regex:/[a-z]/',
+                'regex:/[0-9]/',
+            ],
+        ], [
+            'password.different'   => 'Your new password must be different from the default password.',
+            'password.regex'       => 'Password must contain at least one uppercase letter, one lowercase letter, and one number.',
+            'password.min'         => 'Password must be at least 8 characters.',
+            'password.confirmed'   => 'The password confirmation does not match.',
+        ]);
+
+        $tenant->update([
+            'password'              => Hash::make($request->password),
+            'force_password_change' => false,
+            'default_password_hint' => null,
+            'invitation_status'     => 'accepted',
+        ]);
+
+        return redirect()->route('tenant.dashboard')
+                         ->with('success', 'Password updated successfully. Welcome to REMIS!');
     }
 
     // ─────────────────────── MAINTENANCE ─────────────────────

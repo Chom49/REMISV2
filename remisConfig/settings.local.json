@@ -23,11 +23,17 @@
       "Read(//c/Users/Admin/Downloads/php-8.4.7-Win32-vs17-x64//**)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(php -r \"require 'vendor/autoload.php'; echo 'Autoload OK';\")",
+      "Bash(php composer.phar show barryvdh/laravel-dompdf)",
+      "Bash(composer show *)",
+      "Bash(where composer *)",
+      "Bash(composer require *)"
     ],
     "additionalDirectories": [
       "c:\\xampp\\apache\\conf\\extra",
-      "C:\\Users\\Admin\\Downloads\\php-8.4.7-Win32-vs17-x64"
+      "C:\\Users\\Admin\\Downloads\\php-8.4.7-Win32-vs17-x64",
+      "c:\\xampp\\htdocs\\RemisV2\\public"
     ]
   }
 }

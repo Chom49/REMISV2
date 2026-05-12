@@ -35,4 +35,21 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | TRA (Tanzania Revenue Authority) VAT Verification API
+    |--------------------------------------------------------------------------
+    | TRA_API_BASE_URL  – Base URL of the TRA API server, e.g.
+    |                     https://192.168.1.100:8443
+    | TRA_API_KEY       – Bearer token / API key (leave blank if not required)
+    | TRA_API_TIMEOUT   – HTTP timeout in seconds (default 15)
+    |--------------------------------------------------------------------------
+    */
+    'tra' => [
+        'base_url' => env('TRA_API_BASE_URL', ''),
+        'api_key'  => env('TRA_API_KEY', ''),
+        'timeout'  => (int) env('TRA_API_TIMEOUT', 15),
+        'dev_mode' => env('TRA_DEV_MODE', true),
+    ],
+
 ];

@@ -17,74 +17,74 @@
     <p class="self-start text-gray-400 text-sm font-medium ml-4 sm:ml-12 mb-3">Landlord signup page</p>
 
     {{-- Modal card --}}
-    <div class="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex min-h-[640px]">
+    <div class="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex max-h-[calc(100vh-4rem)]">
 
     {{-- ══════════════ LEFT — FORM ══════════════ --}}
-    <div class="w-full lg:w-[50%] bg-primary-100 flex items-center justify-center px-8 sm:px-12 py-10">
-        <div class="w-full max-w-sm">
+    <div class="w-full lg:w-[50%] bg-primary-100 flex flex-col px-8 sm:px-12 py-8 overflow-y-auto">
+        <div class="w-full max-w-sm mx-auto">
 
             {{-- Logo + heading --}}
-            <div class="flex flex-col items-center text-center mb-7">
+            <div class="flex flex-col items-center text-center mb-3">
                 <img src="{{ asset('images/signIn/logo_transparent.png') }}" alt="REMIS"
-                     class="h-14 w-auto object-contain mb-1">
-                <h1 class="text-xl font-bold text-gray-900 mt-2">Create Your Account</h1>
-                <p class="text-sm text-gray-500 mt-1 leading-snug max-w-xs">
-                    Join thousands of property owners simplifying<br>their management.
+                     class="h-10 w-auto object-contain mb-1">
+                <h1 class="text-xl font-bold text-gray-900 mt-1">Create Your Account</h1>
+                <p class="text-xs text-gray-500 mt-0.5 leading-snug max-w-xs">
+                    Join thousands of property owners simplifying their management.
                 </p>
             </div>
 
             {{-- Errors --}}
             @if ($errors->any())
-                <div class="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+                <div class="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm">
                     {{ $errors->first() }}
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('register') }}" class="space-y-4">
+            <form method="POST" action="{{ route('register') }}" class="space-y-2">
                 @csrf
                 <input type="hidden" name="role" value="landlord">
 
                 {{-- Full Name --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                     <input type="text" name="name" value="{{ old('name') }}" required
-                           class="w-full bg-white border-0 rounded-2xl px-4 py-3 text-sm text-gray-900
+                           class="w-full bg-white border-0 rounded-2xl px-4 py-2 text-sm text-gray-900
                                   shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400
                                   placeholder-gray-300 transition">
                 </div>
 
                 {{-- Email --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                     <input type="email" name="email" value="{{ old('email') }}" required
-                           class="w-full bg-white border-0 rounded-2xl px-4 py-3 text-sm text-gray-900
+                           class="w-full bg-white border-0 rounded-2xl px-4 py-2 text-sm text-gray-900
                                   shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400
                                   placeholder-gray-300 transition">
                 </div>
 
                 {{-- Phone --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                     <input type="text" name="phone" value="{{ old('phone') }}"
-                           class="w-full bg-white border-0 rounded-2xl px-4 py-3 text-sm text-gray-900
+                           class="w-full bg-white border-0 rounded-2xl px-4 py-2 text-sm text-gray-900
                                   shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400
                                   placeholder-gray-300 transition">
                 </div>
 
                 {{-- Password --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
                     <input type="password" name="password" required
-                           class="w-full bg-white border-0 rounded-2xl px-4 py-3 text-sm text-gray-900
+                           class="w-full bg-white border-0 rounded-2xl px-4 py-2 text-sm text-gray-900
                                   shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400
                                   placeholder-gray-300 transition">
                 </div>
 
                 {{-- Confirm Password --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
                     <input type="password" name="password_confirmation" required
-                           class="w-full bg-white border-0 rounded-2xl px-4 py-3 text-sm text-gray-900
+                           class="w-full bg-white border-0 rounded-2xl px-4 py-2 text-sm text-gray-900
                                   shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400
                                   placeholder-gray-300 transition">
                 </div>
@@ -92,12 +92,12 @@
                 {{-- Submit --}}
                 <button type="submit"
                         class="w-full bg-primary-500 hover:bg-primary-600 active:bg-primary-700
-                               text-white font-semibold py-3 rounded-full transition-colors duration-200 mt-1">
+                               text-white font-semibold py-3 rounded-full transition-colors duration-200">
                     Create Account
                 </button>
             </form>
 
-            <p class="mt-6 text-center text-sm text-gray-600">
+            <p class="mt-3 text-center text-sm text-gray-600">
                 Already have an account?
                 <a href="{{ route('login') }}" class="text-primary-700 font-semibold hover:underline">Sign In</a>
             </p>

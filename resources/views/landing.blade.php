@@ -11,7 +11,9 @@
 
             {{-- Logo --}}
             <a href="{{ route('home') }}" class="flex items-center gap-2">
-                <img src="{{ asset('images/signIn/logo_transparent.png') }}" alt="REMIS" class="h-10 w-auto max-w-[9rem] object-contain">
+                <img src="{{ asset('images/signIn/logo_transparent.png') }}" alt="REMIS"
+                     class="h-10 w-auto max-w-[9rem] object-contain"
+                     fetchpriority="high" loading="eager">
             </a>
 
             {{-- Desktop nav --}}
@@ -24,21 +26,8 @@
 
             {{-- Auth buttons --}}
             <div class="flex items-center gap-3">
-                @auth
-                    <span class="text-sm text-gray-600 hidden sm:block">Hi, {{ Auth::user()->name }}</span>
-                    @if(Auth::user()->isLandlord())
-                        <a href="{{ route('landlord.dashboard') }}" class="btn-primary text-sm">Dashboard</a>
-                    @else
-                        <a href="{{ route('tenant.dashboard') }}" class="btn-primary text-sm">Dashboard</a>
-                    @endif
-                    <form method="POST" action="{{ route('logout') }}" class="inline">
-                        @csrf
-                        <button type="submit" class="text-sm text-gray-500 hover:text-red-600 transition-colors">Logout</button>
-                    </form>
-                @else
-                    <button onclick="openModal('login')" class="btn-outline text-sm">Sign In</button>
-                    <button onclick="openModal('signup')" class="btn-primary text-sm">Get Started</button>
-                @endauth
+                <button onclick="openModal('login')" class="btn-outline text-sm">Sign In</button>
+                <button onclick="openModal('signup')" class="btn-primary text-sm">Get Started</button>
 
                 {{-- Mobile menu --}}
                 <button id="mobile-menu-btn" class="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100">
@@ -117,7 +106,8 @@
             <div class="relative flex justify-center lg:justify-end">
                 <img src="{{ asset('images/landingPage/remispic.png') }}" alt="REMIS Property Management"
                      class="w-full max-w-md lg:max-w-xl object-contain mix-blend-multiply animate-float"
-                     style="filter: drop-shadow(0 24px 40px rgba(27,67,50,0.18)) drop-shadow(0 8px 16px rgba(27,67,50,0.10));">
+                     style="filter: drop-shadow(0 24px 40px rgba(27,67,50,0.18)) drop-shadow(0 8px 16px rgba(27,67,50,0.10));"
+                     fetchpriority="high" loading="eager" decoding="async">
             </div>
 
         </div>
@@ -129,8 +119,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div class="text-center mb-16">
-            <span class="text-primary-600 font-semibold text-sm uppercase tracking-widest">Features</span>
-            <h2 class="mt-2 text-3xl sm:text-4xl font-bold text-gray-900">Everything You Need</h2>
+            <h2 class="mt-2 text-3xl sm:text-4xl font-bold text-gray-900">Why Choose REMIS?</h2>
             <p class="mt-4 text-gray-500 text-lg max-w-2xl mx-auto">From property listings to rent collection, REMIS handles every aspect of property management.</p>
         </div>
 
@@ -168,7 +157,6 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div class="text-center mb-16">
-            <span class="text-primary-600 font-semibold text-sm uppercase tracking-widest">Process</span>
             <h2 class="mt-2 text-3xl sm:text-4xl font-bold text-gray-900">How REMIS Works</h2>
             <p class="mt-4 text-gray-500 text-lg max-w-2xl mx-auto">Get started in minutes. No complex setup required.</p>
         </div>
@@ -200,7 +188,8 @@
 
             <div class="flex justify-center">
                 <img src="{{ asset('images/signUp/signUp.png') }}" alt="How REMIS Works"
-                     class="w-full max-w-md mx-auto object-contain mix-blend-multiply animate-float">
+                     class="w-full max-w-md mx-auto object-contain mix-blend-multiply animate-float"
+                     loading="lazy" decoding="async">
             </div>
         </div>
     </div>
@@ -294,7 +283,8 @@
 
             <div class="lg:col-span-2">
                 <img src="{{ asset('images/signIn/logo_transparent.png') }}" alt="REMIS"
-                     class="h-14 w-auto object-contain mb-5">
+                     class="h-14 w-auto object-contain mb-5"
+                     loading="lazy" decoding="async">
 
                 <p class="text-sm leading-relaxed text-gray-500 max-w-xs">
                     REMIS is a modern rental management system that simplifies property management for landlords and tenants alike.
