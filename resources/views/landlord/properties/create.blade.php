@@ -75,21 +75,6 @@
                         </svg>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">City</label>
-                    <div class="relative">
-                        <select name="city"
-                                class="w-full px-4 py-2.5 pr-9 rounded-xl border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition text-sm appearance-none bg-white">
-                            <option value="">Select city</option>
-                            @foreach(['Dar es Salaam','Kariakoo','Masaki','Kinondoni','Ilala','Temeke','Arusha','Mwanza','Dodoma','Other'] as $c)
-                                <option value="{{ $c }}" {{ old('city') == $c ? 'selected' : '' }}>{{ $c }}</option>
-                            @endforeach
-                        </select>
-                        <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </div>
-                </div>
             </div>
 
             <div>

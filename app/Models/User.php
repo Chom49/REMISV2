@@ -25,6 +25,7 @@ class User extends Authenticatable
 
     public function isLandlord(): bool { return $this->role === 'landlord'; }
     public function isTenant(): bool   { return $this->role === 'tenant'; }
+    public function isAdmin(): bool    { return $this->role === 'admin'; }
 
     public function properties()          { return $this->hasMany(Property::class, 'landlord_id'); }
     public function createdByLandlord()   { return $this->belongsTo(User::class, 'landlord_id'); }

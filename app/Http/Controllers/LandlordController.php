@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\LeaseTerminationNotice;
 use App\Mail\TenantInvitation;
 use App\Models\Lease;
 use App\Models\Payment;
@@ -9,6 +10,7 @@ use App\Models\Property;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\MaintenanceRequest;
+use App\Services\BriqSmsService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -383,6 +385,8 @@ class LandlordController extends Controller
         $request->validate([
             'termination_reason' => 'required|string|max:100',
             'termination_notes'  => 'nullable|string|max:2000',
+            'notify_tenant'      => 'nullable|in:1',
+            'notice_channel'     => 'nullable|in:email,sms',
         ]);
 
         $lease->update([
@@ -417,7 +421,50 @@ class LandlordController extends Controller
             }
         }
 
-        return back()->with('success', 'Lease terminated. Unit is now vacant.');
+        // Send termination notice to tenant if requested
+        $noticeResult = ['success' => true];
+        if ($request->input('notify_tenant') === '1' && $lease->tenant) {
+            $channel  = $request->input('notice_channel', 'email');
+            $lease->load(['tenant', 'property', 'unit']);
+            $noticeResult = $this->sendTerminationNotice($lease, $channel);
+        }
+
+        if (!$noticeResult['success']) {
+            return back()->with('warning', 'Lease terminated, but notice could not be sent: ' . $noticeResult['error']);
+        }
+
+        $channel      = $request->input('notice_channel', 'email');
+        $notifyLabel  = $request->input('notify_tenant') === '1'
+            ? ' Notice sent via ' . ($channel === 'sms' ? 'SMS' : 'email') . '.'
+            : '';
+
+        return back()->with('success', 'Lease terminated. Unit is now vacant.' . $notifyLabel);
+    }
+
+    private function sendTerminationNotice(Lease $lease, string $channel): array
+    {
+        $loginUrl = rtrim(url('/'), '/') . '/#login';
+
+        if ($channel === 'sms') {
+            if (empty($lease->tenant->phone)) {
+                return ['success' => false, 'error' => 'Tenant has no phone number on record.'];
+            }
+            $property  = $lease->property->name ?? 'your property';
+            $reason    = ucfirst(str_replace('_', ' ', $lease->termination_reason));
+            $date      = $lease->terminated_at->format('d M Y');
+            $firstName = explode(' ', $lease->tenant->name)[0];
+            $message   = "Hi {$firstName}, your lease at {$property} has been terminated effective {$date}. "
+                       . "Reason: {$reason}. Login to REMIS for details: {$loginUrl}";
+            return app(BriqSmsService::class)->send($lease->tenant->phone, $message);
+        }
+
+        try {
+            Mail::to($lease->tenant->email)->send(new LeaseTerminationNotice($lease, $loginUrl));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Termination notice email failed', ['error' => $e->getMessage()]);
+            return ['success' => false, 'error' => 'Email could not be sent. Please check your mail configuration.'];
+        }
+        return ['success' => true];
     }
 
     public function renewLease(Request $request, Lease $lease)
@@ -466,13 +513,35 @@ class LandlordController extends Controller
         abort_if($lease->landlord_id !== Auth::id(), 403);
         $lease->load('property', 'unit', 'tenant', 'landlord');
 
+        $filename = 'lease-contract-' . ($lease->unit?->unit_number ?? $lease->id) . '-' . now()->format('Ymd') . '.pdf';
+
+        // Generate via CLI PHP (has working GD → renders the logo PNG).
+        $tmpPath = storage_path('app/temp/lease-' . $lease->id . '-' . uniqid() . '.pdf');
+        @mkdir(storage_path('app/temp'), 0755, true);
+
+        $phpCli  = 'C:/Users/Admin/Downloads/php-8.4.7-Win32-vs17-x64/php.exe';
+        $artisan = base_path('artisan');
+
+        $process = \Illuminate\Support\Facades\Process::run(
+            [$phpCli, $artisan, 'remis:generate-pdf', $lease->id, $tmpPath]
+        );
+
+        if (file_exists($tmpPath)) {
+            $content = file_get_contents($tmpPath);
+            @unlink($tmpPath);
+            return response($content, 200, [
+                'Content-Type'        => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+        }
+
+        // Fallback: generate directly (logo will be missing if GD unavailable).
         $pdf = Pdf::loadView('landlord.leases.pdf', compact('lease'))
                   ->setPaper('a4', 'portrait')
-                  ->setOption('defaultFont', 'sans-serif')
+                  ->setOption('defaultFont', 'serif')
                   ->setOption('isRemoteEnabled', false)
-                  ->setOption('isHtml5ParserEnabled', true);
-
-        $filename = 'lease-contract-' . ($lease->unit?->unit_number ?? $lease->id) . '-' . now()->format('Ymd') . '.pdf';
+                  ->setOption('isHtml5ParserEnabled', true)
+                  ->setOption('isFontSubsettingEnabled', true);
 
         return $pdf->download($filename);
     }
@@ -636,7 +705,15 @@ class LandlordController extends Controller
             ]);
         }
 
-        $this->sendInvitation($tenant, $plainPassword);
+        $channel = $request->input('channel', 'email');
+        $result  = $this->sendInvitation($tenant, $plainPassword, $channel);
+
+        if (!$result['success']) {
+            return redirect()->route('landlord.tenants.index')
+                             ->with('warning', 'Tenant added but invitation could not be sent: ' . $result['error']);
+        }
+
+        $channelLabel = $channel === 'sms' ? 'SMS' : 'email';
 
         // If coming from a unit lease flow, auto-assign and redirect back
         $fromLeaseId = $request->input('from_lease');
@@ -653,7 +730,7 @@ class LandlordController extends Controller
                 $unit->update(['status' => 'occupied']);
                 return redirect()
                     ->route('landlord.properties.show', [$property, 'tab' => 'units'])
-                    ->with('success', 'Tenant added, assigned to unit ' . $unit->unit_number . ', and invitation email sent.');
+                    ->with('success', 'Tenant added, assigned to unit ' . $unit->unit_number . ', and invitation ' . $channelLabel . ' sent.');
             }
         }
 
@@ -666,16 +743,17 @@ class LandlordController extends Controller
                 }
                 $property->update(['status' => 'occupied']);
                 return redirect()->route('landlord.properties.show', $property)
-                                 ->with('success', 'Tenant added, linked to property, and invitation email sent.');
+                                 ->with('success', 'Tenant added, linked to property, and invitation ' . $channelLabel . ' sent.');
             }
         }
 
         return redirect()->route('landlord.tenants.index')
-                         ->with('success', 'Tenant added and invitation email sent.');
+                         ->with('success', 'Tenant added and invitation ' . $channelLabel . ' sent.');
     }
 
-    public function tenantInvite(User $user)
+    public function tenantInvite(Request $request, User $user)
     {
+        $channel       = $request->input('channel', 'email');
         $plainPassword = $this->generateSimplePassword();
         $user->update([
             'password'              => Hash::make($plainPassword),
@@ -683,8 +761,14 @@ class LandlordController extends Controller
             'default_password_hint' => $plainPassword,
             'invitation_status'     => 'invited',
         ]);
-        $this->sendInvitation($user, $plainPassword);
-        return back()->with('success', 'Invitation email sent to ' . $user->email . '.');
+        $result = $this->sendInvitation($user, $plainPassword, $channel);
+
+        if (!$result['success']) {
+            return back()->with('error', 'Invitation could not be sent: ' . $result['error']);
+        }
+
+        $channelLabel = $channel === 'sms' ? 'SMS' : 'email';
+        return back()->with('success', 'Invitation ' . $channelLabel . ' sent to ' . ($channel === 'sms' ? $user->phone : $user->email) . '.');
     }
 
     public function tenantsEdit(User $user)
@@ -735,11 +819,35 @@ class LandlordController extends Controller
         return 'Remis@' . random_int(1000, 9999);
     }
 
-    private function sendInvitation(User $tenant, string $plainPassword): void
+    private function sendInvitation(User $tenant, string $plainPassword, string $channel = 'email'): array
     {
         $loginUrl = rtrim(url('/'), '/') . '/#login';
-        Mail::to($tenant->email)
-            ->send(new TenantInvitation($tenant, $plainPassword, $loginUrl));
+
+        if ($channel === 'sms') {
+            if (empty($tenant->phone)) {
+                return ['success' => false, 'error' => 'Tenant has no phone number on record.'];
+            }
+            $message = $this->buildSmsInvitation($tenant, $plainPassword, $loginUrl);
+            return app(BriqSmsService::class)->send($tenant->phone, $message);
+        }
+
+        try {
+            Mail::to($tenant->email)->send(new TenantInvitation($tenant, $plainPassword, $loginUrl));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Tenant invitation email failed', ['error' => $e->getMessage()]);
+            return ['success' => false, 'error' => 'Email could not be sent. Please check your mail configuration.'];
+        }
+        return ['success' => true];
+    }
+
+    private function buildSmsInvitation(User $tenant, string $plainPassword, string $loginUrl): string
+    {
+        $firstName = explode(' ', $tenant->name)[0];
+        return "Hi {$firstName}, your REMIS account is ready!\n"
+             . "Email: {$tenant->email}\n"
+             . "Password: {$plainPassword}\n"
+             . "Login: {$loginUrl}\n"
+             . "Please change your password after first login.";
     }
 
     // ─────────────────────── MAINTENANCE ─────────────────────

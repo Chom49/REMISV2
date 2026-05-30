@@ -198,6 +198,9 @@
                     </div>
                 </div>
 
+                {{-- Invitation Delivery Channel --}}
+                @include('landlord.tenants._channel_picker', ['formId' => 'tin'])
+
                 <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col sm:flex-row gap-3">
                     <button type="submit"
                             class="flex-1 inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600
@@ -326,6 +329,9 @@
                 <textarea name="notes" rows="3" class="input-field resize-none"
                           placeholder="Any relevant notes about the tenant (references, special conditions, etc.)…">{{ old('notes') }}</textarea>
             </div>
+
+            {{-- Invitation Delivery Channel --}}
+            @include('landlord.tenants._channel_picker', ['formId' => 'manual'])
 
             {{-- Save / Cancel --}}
             <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col sm:flex-row gap-3">

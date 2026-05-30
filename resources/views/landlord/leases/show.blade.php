@@ -495,6 +495,8 @@
                                      placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400
                                      focus:border-red-400 resize-none"></textarea>
                 </div>
+
+                @include('landlord.leases._termination_notice')
             </div>
 
             <div class="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 rounded-b-2xl">

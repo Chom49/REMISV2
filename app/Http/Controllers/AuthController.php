@@ -124,8 +124,9 @@ class AuthController extends Controller
 
     public function redirectByRole()
     {
-        return Auth::user()->isLandlord()
-            ? redirect()->route('landlord.dashboard')
-            : redirect()->route('tenant.dashboard');
+        $user = Auth::user();
+        if ($user->isAdmin())    return redirect()->route('admin.dashboard');
+        if ($user->isLandlord()) return redirect()->route('landlord.dashboard');
+        return redirect()->route('tenant.dashboard');
     }
 }

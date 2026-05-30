@@ -56,6 +56,22 @@
             {{ session('success') }}
         </div>
     @endif
+    @if(session('error'))
+        <div class="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+            <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+            {{ session('error') }}
+        </div>
+    @endif
+    @if(session('warning'))
+        <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm">
+            <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+            </svg>
+            {{ session('warning') }}
+        </div>
+    @endif
 
     {{-- ══════════════════════════════════════════════════════
          PROFILE HEADER CARD
@@ -140,17 +156,35 @@
                         Edit
                     </a>
 
+                    {{-- Resend via Email --}}
                     <form method="POST" action="{{ route('landlord.tenants.invite', $tenant) }}" class="inline">
                         @csrf
+                        <input type="hidden" name="channel" value="email">
                         <button type="submit"
-                                class="inline-flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100
-                                       text-gray-600 font-semibold px-3.5 py-2 rounded-xl text-xs
-                                       border border-gray-200 transition-all">
+                                class="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100
+                                       text-indigo-600 font-semibold px-3.5 py-2 rounded-xl text-xs
+                                       border border-indigo-100 transition-all">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                       d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                             </svg>
-                            Resend Invite
+                            Resend via Email
+                        </button>
+                    </form>
+
+                    {{-- Resend via SMS --}}
+                    <form method="POST" action="{{ route('landlord.tenants.invite', $tenant) }}" class="inline">
+                        @csrf
+                        <input type="hidden" name="channel" value="sms">
+                        <button type="submit"
+                                class="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100
+                                       text-emerald-600 font-semibold px-3.5 py-2 rounded-xl text-xs
+                                       border border-emerald-100 transition-all">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
+                            </svg>
+                            Resend via SMS
                         </button>
                     </form>
                 </div>
@@ -599,6 +633,8 @@
                                      placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400
                                      focus:border-red-400 resize-none transition"></textarea>
                 </div>
+
+                @include('landlord.leases._termination_notice')
             </div>
             <div class="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 rounded-b-2xl">
                 <button type="button" onclick="closeTerminateModal()"

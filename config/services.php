@@ -52,4 +52,21 @@ return [
         'dev_mode' => env('TRA_DEV_MODE', true),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | BRIQ Bulk SMS (Tanzania)
+    |--------------------------------------------------------------------------
+    | BRIQ_API_KEY      – API key from your BRIQ dashboard (Settings → API Keys)
+    | BRIQ_BASE_URL     – BRIQ API base URL (default: https://karibu.briq.tz)
+    | BRIQ_SENDER_ID    – Sender name displayed on recipient's phone
+    | BRIQ_BEARER_TOKEN – Optional bearer token, only if your BRIQ app requires it
+    |--------------------------------------------------------------------------
+    */
+    'briq' => [
+        'api_key'      => env('BRIQ_API_KEY', ''),
+        'base_url'     => env('BRIQ_BASE_URL', 'https://karibu.briq.tz'),
+        'sender_id'    => env('BRIQ_SENDER_ID', 'BRIQ'),
+        'bearer_token' => env('BRIQ_BEARER_TOKEN', ''),
+    ],
+
 ];

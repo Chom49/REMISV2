@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LandlordController;
 use App\Http\Controllers\PasswordSetupController;
@@ -92,6 +93,31 @@ Route::middleware(['auth', 'role:landlord', 'locked'])->prefix('landlord')->name
 
     // Reports
     Route::get('/reports', [LandlordController::class, 'reportsIndex'])->name('reports.index');
+});
+
+// ─────────────────────── ADMIN ───────────────────────────────
+Route::middleware(['auth', 'role:admin', 'locked'])->prefix('admin')->name('admin.')->group(function () {
+
+    Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // Settings
+    Route::get('/settings',  [AdminController::class, 'settingsIndex'])->name('settings.index');
+    Route::post('/settings', [AdminController::class, 'settingsUpdate'])->name('settings.update');
+
+    // Audit Logs
+    Route::get('/audit-logs',   [AdminController::class, 'auditLogsIndex'])->name('audit-logs.index');
+    Route::delete('/audit-logs',[AdminController::class, 'auditLogsClear'])->name('audit-logs.clear');
+
+    // Backups
+    Route::get('/backups',                        [AdminController::class, 'backupsIndex'])->name('backups.index');
+    Route::post('/backups',                       [AdminController::class, 'backupsCreate'])->name('backups.create');
+    Route::get('/backups/{backup}/download',      [AdminController::class, 'backupsDownload'])->name('backups.download');
+    Route::delete('/backups/{backup}',            [AdminController::class, 'backupsDestroy'])->name('backups.destroy');
+
+    // Users
+    Route::get('/users',                          [AdminController::class, 'usersIndex'])->name('users.index');
+    Route::patch('/users/{user}/role',            [AdminController::class, 'usersUpdateRole'])->name('users.update-role');
+    Route::delete('/users/{user}',                [AdminController::class, 'usersDestroy'])->name('users.destroy');
 });
 
 // ─────────────────────── TENANT ──────────────────────────────
