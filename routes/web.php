@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LandlordController;
 use App\Http\Controllers\PasswordSetupController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\TinVerificationController;
 use Illuminate\Support\Facades\Auth;
@@ -62,6 +63,7 @@ Route::middleware(['auth', 'role:landlord', 'locked'])->prefix('landlord')->name
     Route::get('/leases',                       [LandlordController::class, 'leasesIndex'])->name('leases.index');
     Route::get('/leases/{lease}',               [LandlordController::class, 'leasesShow'])->name('leases.show');
     Route::get('/leases/{lease}/download',      [LandlordController::class, 'leasesDownload'])->name('leases.download');
+    Route::post('/leases/{lease}/send-notice',  [LandlordController::class, 'leasesSendNotice'])->name('leases.send-notice');
 
     // Legacy lease creation (for backward-compat with single-unit flow)
     Route::get('/properties/{property}/leases/create', [LandlordController::class, 'leasesCreate'])->name('properties.leases.create');
@@ -92,7 +94,27 @@ Route::middleware(['auth', 'role:landlord', 'locked'])->prefix('landlord')->name
     Route::delete('/maintenance/{maintenanceRequest}',  [LandlordController::class, 'maintenanceDestroy'])->name('maintenance.destroy');
 
     // Reports
-    Route::get('/reports', [LandlordController::class, 'reportsIndex'])->name('reports.index');
+    Route::get('/reports',                          [LandlordController::class, 'reportsIndex'])->name('reports.index');
+    Route::get('/reports/pdf/rent-payments',        [LandlordController::class, 'reportRentPaymentsPdf'])->name('reports.pdf.rent-payments');
+    Route::get('/reports/pdf/tenants',              [LandlordController::class, 'reportTenantsPdf'])->name('reports.pdf.tenants');
+    Route::get('/reports/pdf/overdue',              [LandlordController::class, 'reportOverduePdf'])->name('reports.pdf.overdue');
+    Route::get('/reports/pdf/properties',           [LandlordController::class, 'reportPropertiesPdf'])->name('reports.pdf.properties');
+
+    // ─── NMB Payments ────────────────────────────────────────────
+    Route::get('/payments',                              [PaymentController::class, 'index'])->name('payments.index');
+    Route::post('/payments/{payment}/generate',          [PaymentController::class, 'generateControlNumber'])->name('payments.generate');
+    Route::post('/payments/{payment}/send',              [PaymentController::class, 'sendControlNumber'])->name('payments.send');
+    Route::get('/payments/{payment}/status',             [PaymentController::class, 'checkStatus'])->name('payments.status');
+    Route::get('/payments/poll-all',                     [PaymentController::class, 'pollAll'])->name('payments.poll-all');
+    Route::get('/payments/upcoming-count',               [PaymentController::class, 'upcomingCount'])->name('payments.upcoming-count');
+
+    // Settings
+    Route::get('/settings',                      [LandlordController::class, 'settingsIndex'])->name('settings.index');
+    Route::post('/settings/profile',             [LandlordController::class, 'settingsUpdateProfile'])->name('settings.profile');
+    Route::post('/settings/password',            [LandlordController::class, 'settingsUpdatePassword'])->name('settings.password');
+    Route::post('/settings/notifications',       [LandlordController::class, 'settingsUpdateNotifications'])->name('settings.notifications');
+    Route::post('/settings/preferences',         [LandlordController::class, 'settingsUpdatePreferences'])->name('settings.preferences');
+    Route::delete('/settings/picture',           [LandlordController::class, 'settingsRemovePicture'])->name('settings.remove-picture');
 });
 
 // ─────────────────────── ADMIN ───────────────────────────────
@@ -137,4 +159,10 @@ Route::middleware(['auth', 'role:tenant', 'force.password.change', 'locked'])->p
     // Maintenance
     Route::get('/maintenance',   [TenantController::class, 'maintenanceIndex'])->name('maintenance.index');
     Route::post('/maintenance',  [TenantController::class, 'storeMaintenance'])->name('maintenance.store');
+
+    // Settings
+    Route::get('/settings',                [TenantController::class, 'settingsIndex'])->name('settings.index');
+    Route::post('/settings/profile',       [TenantController::class, 'settingsUpdateProfile'])->name('settings.profile');
+    Route::post('/settings/password',      [TenantController::class, 'settingsUpdatePassword'])->name('settings.password');
+    Route::post('/settings/notifications', [TenantController::class, 'settingsUpdateNotifications'])->name('settings.notifications');
 });

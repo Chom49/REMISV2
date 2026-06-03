@@ -114,6 +114,16 @@
                         </svg>
                         Renew
                     </button>
+                    <button onclick="openNoticeModal()"
+                            class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5
+                                   bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold
+                                   px-4 py-2 rounded-xl text-xs border border-amber-200 transition-all duration-200">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                        Send Notice
+                    </button>
                     <button onclick="openTerminateModal()"
                             class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5
                                    bg-red-50 hover:bg-red-100 text-red-700 font-semibold
@@ -175,10 +185,7 @@
                     <dt class="text-gray-400">Address</dt>
                     <dd class="font-semibold text-gray-800 text-right max-w-[60%]">{{ $lease->property->address ?? '—' }}</dd>
                 </div>
-                <div class="flex justify-between text-sm">
-                    <dt class="text-gray-400">City</dt>
-                    <dd class="font-semibold text-gray-800">{{ $lease->property->city ?? '—' }}</dd>
-                </div>
+
                 <div class="flex justify-between text-sm">
                     <dt class="text-gray-400">Region</dt>
                     <dd class="font-semibold text-gray-800">{{ $lease->property->county ?? '—' }}</dd>
@@ -266,11 +273,7 @@
                         {{ $lease->payment_day ? 'Day ' . $lease->payment_day . ' of month' : '—' }}
                     </dd>
                 </div>
-                @php $totalRent = $lease->start_date->diffInMonths($lease->end_date) * $lease->monthly_rent; @endphp
-                <div class="flex justify-between text-sm pt-3 border-t border-gray-100">
-                    <dt class="text-gray-400">Total Contract Value</dt>
-                    <dd class="font-bold text-primary-700">Tshs {{ number_format($totalRent, 0) }}</dd>
-                </div>
+
             </dl>
         </div>
 
@@ -297,7 +300,7 @@
                 <div class="flex justify-between text-sm">
                     <dt class="text-gray-400">Duration</dt>
                     <dd class="font-semibold text-gray-800">
-                        {{ $lease->start_date->diffInMonths($lease->end_date) }} months
+                        {{ round($lease->start_date->diffInMonths($lease->end_date)) }} months
                     </dd>
                 </div>
                 <div class="flex justify-between text-sm">
@@ -614,6 +617,110 @@
 </div>
 @endif
 
+{{-- ══ SEND NOTICE MODAL ══════════════════════════════════════ --}}
+@if($lease->status === 'active')
+<div id="notice-modal"
+     class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                </div>
+                <h3 class="text-sm font-bold text-gray-900">Send Warning Notice</h3>
+            </div>
+            <button onclick="closeNoticeModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        {{-- Form --}}
+        <form method="POST" action="{{ route('landlord.leases.send-notice', $lease) }}">
+            @csrf
+            <div class="px-6 py-5 space-y-4">
+
+                <p class="text-xs text-gray-500 leading-relaxed">
+                    A formal warning email will be sent to
+                    <strong class="text-gray-700">{{ $lease->tenant->name ?? 'the tenant' }}</strong>
+                    at <span class="text-gray-700">{{ $lease->tenant->email ?? '—' }}</span>.
+                </p>
+
+                {{-- Reason --}}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        Notice Reason <span class="text-red-400">*</span>
+                    </label>
+                    <select name="reason" required id="notice-reason"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900
+                                   focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition"
+                            onchange="toggleCustomReason(this)">
+                        <option value="" disabled selected>Select a reason…</option>
+                        <option value="Late Rent Payment">Late Rent Payment</option>
+                        <option value="Lease Violation">Lease Violation</option>
+                        <option value="Property Damage">Property Damage</option>
+                        <option value="Noise Complaints">Noise Complaints</option>
+                        <option value="Unauthorized Occupancy">Unauthorized Occupancy</option>
+                        <option value="__custom__">Custom Reason…</option>
+                    </select>
+                </div>
+
+                {{-- Custom reason (shown only when Custom is selected) --}}
+                <div id="custom-reason-wrap" class="hidden">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        Custom Reason <span class="text-red-400">*</span>
+                    </label>
+                    <input type="text" name="custom_reason" id="custom-reason-input"
+                           maxlength="255" placeholder="Describe the reason…"
+                           class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900
+                                  focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                </div>
+
+                {{-- Comments --}}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        Additional Comments
+                        <span class="text-gray-400 normal-case font-normal ml-1">(optional)</span>
+                    </label>
+                    <textarea name="comments" rows="4"
+                              placeholder="Provide any additional context or details…"
+                              maxlength="2000"
+                              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800
+                                     placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400
+                                     focus:border-amber-400 resize-none transition"></textarea>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 pt-2 pb-6 space-y-2.5">
+                <button type="submit"
+                        class="w-full inline-flex items-center justify-center gap-2.5 text-white font-bold
+                               px-6 py-3.5 rounded-xl text-sm shadow-lg transition-all duration-200
+                               hover:-translate-y-px"
+                        style="background-color:#d97706;" onmouseover="this.style.backgroundColor='#b45309'" onmouseout="this.style.backgroundColor='#d97706'">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    Send Warning Notice
+                </button>
+                <button type="button" onclick="closeNoticeModal()"
+                        class="w-full py-2.5 text-sm font-semibold text-gray-500 hover:text-gray-700
+                               hover:bg-gray-50 rounded-xl transition-colors">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
 @endsection
 
 @push('scripts')
@@ -648,10 +755,37 @@ function closeRenewModal() {
     const m = document.getElementById('renew-modal');
     if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
 }
+function openNoticeModal() {
+    const m = document.getElementById('notice-modal');
+    if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+}
+function closeNoticeModal() {
+    const m = document.getElementById('notice-modal');
+    if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+}
+function toggleCustomReason(select) {
+    const wrap  = document.getElementById('custom-reason-wrap');
+    const input = document.getElementById('custom-reason-input');
+    const form  = select.closest('form');
+    const hidden = form.querySelector('input[name="reason"]') || select;
+
+    if (select.value === '__custom__') {
+        wrap.classList.remove('hidden');
+        input.required = true;
+        // swap select name so it doesn't submit "__custom__"
+        select.name = '_reason_select';
+        input.name  = 'reason';
+    } else {
+        wrap.classList.add('hidden');
+        input.required = false;
+        select.name = 'reason';
+        input.name  = 'custom_reason';
+    }
+}
 
 // Close modals on backdrop click
 document.addEventListener('DOMContentLoaded', () => {
-    ['terminate-modal','renew-modal'].forEach(id => {
+    ['terminate-modal','renew-modal','notice-modal'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('click', e => { if (e.target === el) { el.classList.add('hidden'); el.classList.remove('flex'); } });

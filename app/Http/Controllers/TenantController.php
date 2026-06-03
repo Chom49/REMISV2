@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Lease;
 use App\Models\Payment;
 use App\Models\MaintenanceRequest;
+use App\Services\LeasePaymentSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -21,6 +22,9 @@ class TenantController extends Controller
             ->where('status', 'active')
             ->with('property', 'landlord')
             ->first();
+        if ($activeLease) {
+            app(LeasePaymentSyncService::class)->syncLease($activeLease);
+        }
 
         $payments = Payment::where('tenant_id', $tenant->id)
             ->with('lease.property')
@@ -48,6 +52,9 @@ class TenantController extends Controller
             ->where('status', 'active')
             ->with('property')
             ->first();
+        if ($activeLease) {
+            app(LeasePaymentSyncService::class)->syncLease($activeLease);
+        }
 
         $payments = Payment::where('tenant_id', $tenant->id)
             ->with('lease.property')
@@ -160,5 +167,59 @@ class TenantController extends Controller
         MaintenanceRequest::create($validated);
 
         return back()->with('success', 'Maintenance request submitted successfully.');
+    }
+
+    // ─────────────────────── SETTINGS ────────────────────────
+
+    public function settingsIndex()
+    {
+        return view('tenant.settings', ['user' => Auth::user()]);
+    }
+
+    public function settingsUpdateProfile(Request $request)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'name'  => 'required|string|max:100',
+            'email' => 'required|email|max:150|unique:users,email,' . $user->id,
+            'phone' => 'nullable|string|max:20',
+        ]);
+
+        $user->update($validated);
+
+        return back()->with('success', 'Profile updated successfully.');
+    }
+
+    public function settingsUpdatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'password'         => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = Auth::user();
+
+        if (! Hash::check($request->current_password, $user->password)) {
+            return back()->withErrors(['current_password' => 'Current password is incorrect.'])->with('section', 'security');
+        }
+
+        $user->update(['password' => Hash::make($request->password)]);
+
+        return back()->with('success', 'Password changed successfully.');
+    }
+
+    public function settingsUpdateNotifications(Request $request)
+    {
+        $user  = Auth::user();
+        $prefs = $user->preferences ?? [];
+
+        $prefs['notify_rent_due']     = $request->boolean('notify_rent_due');
+        $prefs['notify_late_payment'] = $request->boolean('notify_late_payment');
+        $prefs['notify_lease_expiry'] = $request->boolean('notify_lease_expiry');
+
+        $user->update(['preferences' => $prefs]);
+
+        return back()->with('success', 'Notification preferences saved.');
     }
 }

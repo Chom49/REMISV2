@@ -243,7 +243,6 @@
                         <th class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3 hidden sm:table-cell">Description</th>
                         <th class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Amount</th>
                         <th class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Status</th>
-                        <th class="text-right text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-3">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
@@ -270,17 +269,6 @@
                                 <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">
                                     {{ ucfirst($payment->status) }}
                                 </span>
-                            </td>
-                            <td class="px-5 py-4 text-right">
-                                @if($payment->status !== 'paid')
-                                    <a href="{{ route('tenant.payments.checkout', $payment) }}"
-                                       class="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-600
-                                              text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors">
-                                        Pay Now
-                                    </a>
-                                @else
-                                    <span class="text-xs text-gray-300">—</span>
-                                @endif
                             </td>
                         </tr>
                     @empty

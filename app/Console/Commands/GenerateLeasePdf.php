@@ -24,7 +24,9 @@ class GenerateLeasePdf extends Command
         }
 
         $pdf = Pdf::loadView('landlord.leases.pdf', compact('lease'))
-                  ->setPaper('a4', 'portrait')
+                  ->setPaper([0, 0, 595.28, 841.89], 'portrait') // A4 in points (exact)
+                  ->setOption('default_paper_size', 'a4')
+                  ->setOption('default_paper_orientation', 'portrait')
                   ->setOption('defaultFont', 'serif')
                   ->setOption('isRemoteEnabled', false)
                   ->setOption('isHtml5ParserEnabled', true)

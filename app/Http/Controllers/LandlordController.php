@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\LeaseTerminationNotice;
 use App\Mail\TenantInvitation;
+use App\Mail\TenantWarningNotice;
 use App\Models\Lease;
 use App\Models\Payment;
 use App\Models\Property;
@@ -11,6 +12,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\MaintenanceRequest;
 use App\Services\BriqSmsService;
+use App\Services\LeasePaymentSyncService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -26,6 +28,8 @@ class LandlordController extends Controller
     public function dashboard()
     {
         $landlord   = Auth::user();
+        app(LeasePaymentSyncService::class)->syncLandlord($landlord->id);
+
         $properties = Property::where('landlord_id', $landlord->id)->with('activeLease.tenant', 'units')->get();
 
         $totalRevenue  = Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlord->id))
@@ -308,6 +312,7 @@ class LandlordController extends Controller
 
         $lease->update(['tenant_id' => $request->tenant_id]);
         $unit->update(['status' => 'occupied']);
+        app(LeasePaymentSyncService::class)->syncLease($lease->refresh());
 
         return redirect()
             ->route('landlord.properties.show', [$property, 'tab' => 'units'])
@@ -355,10 +360,14 @@ class LandlordController extends Controller
         $landlordId = Auth::id();
 
         $leases = Lease::where('landlord_id', $landlordId)
-            ->with('property', 'unit', 'tenant')
+            ->with('property', 'unit', 'tenant', 'payments')
             ->orderByRaw("FIELD(status,'active','pending','expired','terminated')")
             ->latest()
             ->get();
+
+        $sync = app(LeasePaymentSyncService::class);
+        $leases->each(fn (Lease $lease) => $sync->syncLease($lease));
+        $leases->load('payments');
 
         $today = now()->startOfDay();
 
@@ -497,6 +506,7 @@ class LandlordController extends Controller
             'status'                     => 'active',
             'renewal_of_id'              => $lease->id,
         ]);
+        app(LeasePaymentSyncService::class)->syncLease($newLease);
 
         return back()->with('success', 'Lease renewed successfully. New contract is active until ' . \Carbon\Carbon::parse($request->end_date)->format('d M Y') . '.');
     }
@@ -504,6 +514,7 @@ class LandlordController extends Controller
     public function leasesShow(Lease $lease)
     {
         abort_if($lease->landlord_id !== Auth::id(), 403);
+        app(LeasePaymentSyncService::class)->syncLease($lease);
         $lease->load('property', 'unit', 'tenant', 'landlord', 'payments');
         return view('landlord.leases.show', compact('lease'));
     }
@@ -537,13 +548,44 @@ class LandlordController extends Controller
 
         // Fallback: generate directly (logo will be missing if GD unavailable).
         $pdf = Pdf::loadView('landlord.leases.pdf', compact('lease'))
-                  ->setPaper('a4', 'portrait')
+                  ->setPaper([0, 0, 595.28, 841.89], 'portrait') // A4 in points (exact)
+                  ->setOption('default_paper_size', 'a4')
+                  ->setOption('default_paper_orientation', 'portrait')
                   ->setOption('defaultFont', 'serif')
                   ->setOption('isRemoteEnabled', false)
                   ->setOption('isHtml5ParserEnabled', true)
                   ->setOption('isFontSubsettingEnabled', true);
 
         return $pdf->download($filename);
+    }
+
+    public function leasesSendNotice(Request $request, Lease $lease)
+    {
+        abort_if($lease->landlord_id !== Auth::id(), 403);
+        abort_if($lease->status !== 'active', 422);
+        abort_if(! $lease->tenant?->email, 422);
+
+        $validated = $request->validate([
+            'reason'   => 'required|string|max:255',
+            'comments' => 'nullable|string|max:2000',
+        ]);
+
+        $lease->load('property', 'unit', 'tenant', 'landlord');
+
+        $reason   = $validated['reason'];
+        $comments = $validated['comments'] ?? '';
+
+        // Send after the response is flushed so the page loads instantly.
+        dispatch(function () use ($lease, $reason, $comments) {
+            Mail::to($lease->tenant->email)
+                ->send(new TenantWarningNotice(
+                    lease:    $lease,
+                    reason:   $reason,
+                    comments: $comments,
+                ));
+        })->afterResponse();
+
+        return back()->with('success', 'Warning notice sent successfully to ' . $lease->tenant->name . '.');
     }
 
     // ─────────────────────── LINK TENANT (legacy) ─────────────
@@ -728,6 +770,7 @@ class LandlordController extends Controller
             if ($lease) {
                 $lease->update(['tenant_id' => $tenant->id]);
                 $unit->update(['status' => 'occupied']);
+                app(LeasePaymentSyncService::class)->syncLease($lease->refresh());
                 return redirect()
                     ->route('landlord.properties.show', [$property, 'tab' => 'units'])
                     ->with('success', 'Tenant added, assigned to unit ' . $unit->unit_number . ', and invitation ' . $channelLabel . ' sent.');
@@ -740,6 +783,7 @@ class LandlordController extends Controller
                 $lease = $property->activeLease;
                 if ($lease) {
                     $lease->update(['tenant_id' => $tenant->id]);
+                    app(LeasePaymentSyncService::class)->syncLease($lease->refresh());
                 }
                 $property->update(['status' => 'occupied']);
                 return redirect()->route('landlord.properties.show', $property)
@@ -790,20 +834,29 @@ class LandlordController extends Controller
             || Lease::where('tenant_id', $user->id)->whereIn('property_id', $propertyIds)->exists();
         abort_if(!$belongsToLandlord, 403);
 
-        $validated = $request->validate([
-            'first_name'  => 'required|string|max:100',
-            'last_name'   => 'required|string|max:100',
+        // Name is only editable for manually-added tenants (no TIN on record)
+        $rules = [
             'phone'       => 'nullable|string|max:20',
             'gender'      => 'nullable|in:male,female',
             'nationality' => 'nullable|string|max:100',
-        ]);
+        ];
+        if (! $user->tin) {
+            $rules['first_name'] = 'required|string|max:100';
+            $rules['last_name']  = 'required|string|max:100';
+        }
 
-        $user->update([
-            'name'        => $validated['first_name'] . ' ' . $validated['last_name'],
+        $validated = $request->validate($rules);
+
+        $update = [
             'phone'       => $validated['phone'] ?? null,
             'gender'      => $validated['gender'] ?? null,
             'nationality' => $validated['nationality'] ?? null,
-        ]);
+        ];
+        if (! $user->tin) {
+            $update['name'] = $validated['first_name'] . ' ' . $validated['last_name'];
+        }
+
+        $user->update($update);
 
         return redirect()->route('landlord.tenants.show', $user)
                          ->with('success', 'Tenant profile updated.');
@@ -906,7 +959,168 @@ class LandlordController extends Controller
 
     public function reportsIndex()
     {
-        return view('landlord.reports.index');
+        $landlordId = Auth::id();
+        $stats = [
+            'payments'   => Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlordId))->count(),
+            'tenants'    => User::where('role', 'tenant')->where('landlord_id', $landlordId)->count(),
+            'overdue'    => Payment::whereHas('lease', fn($q) => $q->where('landlord_id', $landlordId))
+                                ->where(fn($q) => $q->where('status', 'overdue')
+                                    ->orWhere(fn($q2) => $q2->where('status', 'pending')->where('due_date', '<', now()->toDateString())))
+                                ->count(),
+            'properties' => Property::where('landlord_id', $landlordId)->count(),
+        ];
+        return view('landlord.reports.index', compact('stats'));
+    }
+
+    public function reportRentPaymentsPdf()
+    {
+        return $this->streamReportPdf('rent-payments', 'rent-payments-report-' . now()->format('Ymd') . '.pdf');
+    }
+
+    public function reportTenantsPdf()
+    {
+        return $this->streamReportPdf('tenants', 'tenants-report-' . now()->format('Ymd') . '.pdf');
+    }
+
+    public function reportOverduePdf()
+    {
+        return $this->streamReportPdf('overdue', 'overdue-payments-report-' . now()->format('Ymd') . '.pdf');
+    }
+
+    public function reportPropertiesPdf()
+    {
+        return $this->streamReportPdf('properties', 'properties-report-' . now()->format('Ymd') . '.pdf');
+    }
+
+    private function streamReportPdf(string $type, string $filename)
+    {
+        $landlordId = Auth::id();
+        $tmpPath    = storage_path('app/temp/report-' . $type . '-' . $landlordId . '-' . uniqid() . '.pdf');
+        @mkdir(storage_path('app/temp'), 0755, true);
+
+        $phpCli  = 'C:/Users/Admin/Downloads/php-8.4.7-Win32-vs17-x64/php.exe';
+        $artisan = base_path('artisan');
+
+        \Illuminate\Support\Facades\Process::run(
+            [$phpCli, $artisan, 'remis:generate-report-pdf', $type, $landlordId, $tmpPath]
+        );
+
+        if (file_exists($tmpPath)) {
+            $content = file_get_contents($tmpPath);
+            @unlink($tmpPath);
+            return response($content, 200, [
+                'Content-Type'        => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+        }
+
+        // Fallback: direct generation (logo may be missing without GD).
+        $data = match ($type) {
+            'rent-payments' => ['payments' => \App\Models\Payment::with(['lease.property', 'lease.unit', 'tenant'])
+                ->whereHas('lease', fn($q) => $q->where('landlord_id', $landlordId))
+                ->orderBy('due_date', 'desc')->get()],
+            'tenants'       => ['tenants' => \App\Models\User::with(['leasesAsTenant' => fn($q) => $q->where('landlord_id', $landlordId)->with('property', 'unit')->latest()])
+                ->where('role', 'tenant')->where('landlord_id', $landlordId)->orderBy('name')->get()],
+            'overdue'       => ['payments' => \App\Models\Payment::with(['lease.property', 'lease.unit', 'tenant'])
+                ->whereHas('lease', fn($q) => $q->where('landlord_id', $landlordId))
+                ->where(fn($q) => $q->where('status', 'overdue')->orWhere(fn($q2) => $q2->where('status', 'pending')->where('due_date', '<', now()->toDateString())))
+                ->orderBy('due_date', 'asc')->get()],
+            'properties'    => ['properties' => \App\Models\Property::with('units')->where('landlord_id', $landlordId)->orderBy('name')->get()],
+        };
+
+        return Pdf::loadView("landlord.reports.pdf.{$type}", $data)
+                  ->setPaper('a4', 'portrait')
+                  ->download($filename);
+    }
+
+    // ─────────────────────── SETTINGS ─────────────────────────
+
+    public function settingsIndex()
+    {
+        return view('landlord.settings', ['user' => Auth::user()]);
+    }
+
+    public function settingsUpdateProfile(Request $request)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'name'            => 'required|string|max:100',
+            'email'           => 'required|email|max:150|unique:users,email,' . $user->id,
+            'phone'           => 'nullable|string|max:20',
+            'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
+
+        if ($request->hasFile('profile_picture')) {
+            if ($user->profile_picture) {
+                Storage::disk('public')->delete($user->profile_picture);
+            }
+            $validated['profile_picture'] = $request->file('profile_picture')
+                ->store('avatars', 'public');
+        } else {
+            unset($validated['profile_picture']);
+        }
+
+        $user->update($validated);
+
+        return back()->with('success', 'Profile updated successfully.');
+    }
+
+    public function settingsUpdatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'password'         => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = Auth::user();
+
+        if (! Hash::check($request->current_password, $user->password)) {
+            return back()->withErrors(['current_password' => 'Current password is incorrect.'])->with('section', 'security');
+        }
+
+        $user->update(['password' => Hash::make($request->password)]);
+
+        return back()->with('success', 'Password changed successfully.');
+    }
+
+    public function settingsUpdateNotifications(Request $request)
+    {
+        $user = Auth::user();
+        $prefs = $user->preferences ?? [];
+
+        $prefs['notify_rent_due']       = $request->boolean('notify_rent_due');
+        $prefs['notify_late_payment']   = $request->boolean('notify_late_payment');
+        $prefs['notify_lease_expiry']   = $request->boolean('notify_lease_expiry');
+
+        $user->update(['preferences' => $prefs]);
+
+        return back()->with('success', 'Notification preferences saved.');
+    }
+
+    public function settingsRemovePicture()
+    {
+        $user = Auth::user();
+        if ($user->profile_picture) {
+            Storage::disk('public')->delete($user->profile_picture);
+            $user->update(['profile_picture' => null]);
+        }
+        return back()->with('success', 'Profile picture removed.');
+    }
+
+    public function settingsUpdatePreferences(Request $request)
+    {
+        $request->validate([
+            'theme' => 'required|in:light,dark',
+        ]);
+
+        $user = Auth::user();
+        $prefs = $user->preferences ?? [];
+        $prefs['theme'] = $request->theme;
+
+        $user->update(['preferences' => $prefs]);
+
+        return back()->with('success', 'Preferences saved.');
     }
 
     // ─────────────────────── HELPERS ──────────────────────────

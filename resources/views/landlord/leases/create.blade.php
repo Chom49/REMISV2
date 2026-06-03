@@ -98,17 +98,7 @@
                 </div>
             </div>
 
-            {{-- Deposit --}}
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Deposit amount</label>
-                <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">Tsh</span>
-                    <input type="number" name="security_deposit" value="{{ old('security_deposit', '0') }}" min="0" step="0.01"
-                           class="input-field pl-10" placeholder="0.0">
-                </div>
-            </div>
-
-            {{-- Reminder --}}
+{{-- Reminder --}}
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1.5">Lease expiry reminder days before</label>
                 <input type="number" name="lease_expiry_reminder_days" value="{{ old('lease_expiry_reminder_days') }}" min="0" max="365"

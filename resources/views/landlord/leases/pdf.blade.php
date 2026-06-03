@@ -28,7 +28,7 @@ body {
 
 .header {
     text-align: center;
-    margin-top: 10mm;
+    margin-top: 18mm;
     margin-bottom: 14px;
 }
 
@@ -150,6 +150,9 @@ body {
         'Failure to comply with the lease terms, including non-payment of rent or property misuse, may result in termination of the lease agreement.',
         'Upon expiration or termination of this lease, the Tenant agrees to vacate the premises peacefully unless a renewal agreement is signed.',
         'Both parties agree to comply with all applicable property and tenancy laws.',
+        'The Tenant shall be responsible for any damage caused to the property beyond normal wear and tear and shall bear the cost of repairs or replacement where necessary.',
+        'The Tenant shall keep the premises clean, hygienic, and free from activities that may cause nuisance or disturbance to neighbors.',
+        'The Landlord reserves the right to terminate this agreement upon written notice if the Tenant repeatedly breaches the terms and conditions of this lease.',
     ];
 
     // Use custom terms only when the landlord has entered 7 or more numbered lines.
@@ -161,7 +164,7 @@ body {
             if ($line !== '') $termsToShow[] = preg_replace('/^\d+\.\s*/', '', $line);
         }
     }
-    if (count($termsToShow) < 7) {
+    if (count($termsToShow) < 10) {
         $termsToShow = $defaultTerms;
     }
 @endphp
