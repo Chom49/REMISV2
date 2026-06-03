@@ -88,7 +88,7 @@
                         Glad To See You !
                     </h2>
 
-                    <p class="text-gray-500 text-xs leading-5 max-w-[200px] mb-4">
+                    <p class="text-xs leading-5 max-w-[200px] mb-4" style="color: #6b7280;">
                         Managing properties doesn't have to be complicated. Our platform gives you smart tools to stay organized and in control.
                     </p>
 

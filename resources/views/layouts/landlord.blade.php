@@ -72,6 +72,15 @@
                 Leases
             </a>
 
+            <a href="{{ route('landlord.payments.index') }}"
+               class="sidebar-link {{ request()->routeIs('landlord.payments.*') ? 'sidebar-link-active' : '' }}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                </svg>
+                Payments
+            </a>
+
             <a href="{{ route('landlord.reports.index') }}"
                class="sidebar-link {{ request()->routeIs('landlord.reports.*') ? 'sidebar-link-active' : '' }}">
                 <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,6 +98,15 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
                 Maintenance
+            </a>
+
+            <a href="{{ route('landlord.settings.index') }}"
+               class="sidebar-link {{ request()->routeIs('landlord.settings.*') ? 'sidebar-link-active' : '' }}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+                Settings
             </a>
         </nav>
 
@@ -108,7 +126,7 @@
     </aside>
 
     {{-- ===== MAIN AREA ===== --}}
-    <div class="flex-1 lg:ml-56 flex flex-col min-h-screen">
+    <div id="page-wrapper" class="flex-1 lg:ml-56 flex flex-col min-h-screen">
 
         {{-- Top bar --}}
         <header class="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -134,35 +152,62 @@
                 </button>
 
                 {{-- Notifications --}}
-                <button class="p-2 rounded-lg text-gray-500 hover:bg-gray-100 relative" aria-label="Notifications">
+                <a href="{{ route('landlord.payments.index', ['filter' => 'upcoming']) }}"
+                   class="p-2 rounded-lg text-gray-500 hover:bg-gray-100 relative" aria-label="Upcoming Payments">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
                     </svg>
-                </button>
+                    @php
+                        $landlordId = Auth::id();
+                        $propIds = \App\Models\Property::where('landlord_id', $landlordId)->pluck('id');
+                        $upcomingBadge = \App\Models\Payment::whereHas('lease', fn($q) => $q->whereIn('property_id', $propIds))
+                            ->whereIn('status', ['pending', 'overdue'])
+                            ->where('due_date', '<=', now()->addDays(7))
+                            ->where('due_date', '>=', now()->subDays(1))
+                            ->count();
+                    @endphp
+                    @if($upcomingBadge > 0)
+                        <span class="absolute top-1 right-1 flex items-center justify-center w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full leading-none">
+                            {{ $upcomingBadge > 9 ? '9+' : $upcomingBadge }}
+                        </span>
+                    @endif
+                </a>
 
                 {{-- Avatar --}}
                 <div class="flex items-center gap-2">
-                    <div class="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {{ strtoupper(substr(Auth::user()->name ?? 'U', 0, 2)) }}
-                    </div>
+                    @if(Auth::user()->profile_picture)
+                        <img src="{{ Storage::url(Auth::user()->profile_picture) }}"
+                             alt="{{ Auth::user()->name }}"
+                             class="w-9 h-9 rounded-full object-cover border border-primary-100 flex-shrink-0">
+                    @else
+                        <div class="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {{ strtoupper(substr(Auth::user()->name ?? 'U', 0, 2)) }}
+                        </div>
+                    @endif
                     <span class="hidden sm:block text-sm font-medium text-gray-700">{{ Auth::user()->name ?? '' }}</span>
                 </div>
             </div>
         </header>
 
         {{-- Page Content --}}
-        <main class="flex-1 p-4 sm:p-6 lg:p-8">
+        <main id="main-content" class="flex-1 p-4 sm:p-6 lg:p-8">
             @yield('content')
         </main>
+
+        {{-- Page-specific scripts live here so the AJAX navigator can swap & re-execute them --}}
+        <div id="page-scripts">@stack('scripts')</div>
     </div>
 </div>
+
+{{-- Slim loading bar injected by navigator.js --}}
+<div id="nav-progress" aria-hidden="true"></div>
 
 {{-- Sidebar overlay (mobile) --}}
 <div id="sidebar-overlay" class="fixed inset-0 z-30 bg-black/40 hidden lg:hidden"
      onclick="document.getElementById('sidebar').classList.add('-translate-x-full'); this.classList.add('hidden')"></div>
 
-@stack('scripts')
+{{-- Persistent scripts (sidebar toggle) – NOT inside page-scripts so they survive navigation --}}
 <script>
 document.getElementById('sidebar-toggle')?.addEventListener('click', function() {
     const overlay = document.getElementById('sidebar-overlay');

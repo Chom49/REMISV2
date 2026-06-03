@@ -14,7 +14,7 @@
 <div class="min-h-screen flex flex-col items-center justify-center px-4 py-8">
 
     {{-- Top label --}}
-    <p class="self-start text-gray-400 text-sm font-medium ml-4 sm:ml-12 mb-3">Landlord login page</p>
+    <p class="self-start text-sm font-medium ml-4 sm:ml-12 mb-3" style="color: #9ca3af;">Landlord login page</p>
 
     {{-- Modal card --}}
     <div class="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex min-h-[560px]">
@@ -24,7 +24,7 @@
         <div class="w-full max-w-sm">
 
             {{-- Heading --}}
-            <h1 class="text-4xl font-extrabold text-gray-900 leading-tight mb-6">
+            <h1 class="text-4xl font-extrabold leading-tight mb-6" style="color: #111827;">
                 Sign In to<br>Your Account
             </h1>
 
@@ -46,7 +46,7 @@
 
                 {{-- Email --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+                    <label class="block text-sm font-medium mb-1.5" style="color: #374151;">Email Address</label>
                     <input type="email" name="email" value="{{ old('email') }}" required autofocus
                            class="w-full bg-white border-0 rounded-2xl px-4 py-3 text-sm text-gray-900
                                   shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400
@@ -55,7 +55,7 @@
 
                 {{-- Password --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                    <label class="block text-sm font-medium mb-1.5" style="color: #374151;">Password</label>
                     <input type="password" name="password" required
                            class="w-full bg-white border-0 rounded-2xl px-4 py-3 text-sm text-gray-900
                                   shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-400
@@ -70,9 +70,9 @@
                 </button>
             </form>
 
-            <p class="mt-5 text-center text-sm text-gray-600">
+            <p class="mt-5 text-center text-sm" style="color: #4b5563;">
                 Don't have an account?
-                <a href="{{ route('register') }}" class="text-primary-700 font-semibold hover:underline">Register Now</a>
+                <a href="{{ route('register') }}" class="font-semibold hover:underline" style="color: #1b4332;">Register Now</a>
             </p>
         </div>
     </div>
@@ -84,11 +84,11 @@
         <img src="{{ asset('images/signIn/signIn.png') }}" alt="Welcome illustration"
              class="w-44 h-44 object-contain mb-5">
 
-        <h2 class="text-3xl font-extrabold text-gray-900 uppercase tracking-wide mb-3">
+        <h2 class="text-3xl font-extrabold uppercase tracking-wide mb-3" style="color: #111827;">
             Glad To See You !
         </h2>
 
-        <p class="text-gray-500 text-sm leading-7 max-w-xs mb-5">
+        <p class="text-sm leading-7 max-w-xs mb-5" style="color: #6b7280;">
             Managing properties doesn't have to be complicated.<br>
             Our platform gives you smart tools to stay organized<br>
             and in control

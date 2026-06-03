@@ -152,8 +152,8 @@ table.data-table tbody td {
         <tr>
             <td>{{ $i + 1 }}</td>
             <td>{{ $p->tenant->name ?? '—' }}</td>
-            <td>{{ $p->lease->property->name ?? '—' }}</td>
-            <td>{{ $p->lease->unit->unit_number ?? '—' }}</td>
+            <td>{{ optional(optional($p->lease)->property)->name ?? '—' }}</td>
+            <td>{{ optional(optional($p->lease)->unit)->unit_number ?? '—' }}</td>
             <td>{{ $p->due_date?->format('d/m/Y') ?? '—' }}</td>
             <td><span class="days-hi">{{ $daysOverdue }} days</span></td>
             <td class="text-right">{{ number_format($p->amount, 0) }}</td>

@@ -222,4 +222,5 @@ class TenantController extends Controller
 
         return back()->with('success', 'Notification preferences saved.');
     }
+
 }

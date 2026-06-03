@@ -2,9 +2,6 @@
 
 @section('title', 'Dashboard')
 
-@push('styles')
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-@endpush
 
 @section('content')
 
@@ -22,6 +19,67 @@
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Hello {{ explode(' ', $landlord->name)[0] }}</h1>
     </div>
+
+    {{-- ===== UPCOMING PAYMENT NOTIFICATION ===== --}}
+    @php
+        $propIds = $landlord->properties()->pluck('id');
+        $upcomingPayments = \App\Models\Payment::whereHas('lease', fn($q) => $q->whereIn('property_id', $propIds))
+            ->whereIn('status', ['pending', 'overdue'])
+            ->where('due_date', '<=', now()->addDays(7))
+            ->where('due_date', '>=', now()->subDays(1))
+            ->with(['tenant', 'lease.property', 'lease.unit'])
+            ->orderBy('due_date')
+            ->get();
+    @endphp
+    @if($upcomingPayments->count() > 0)
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+        <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-amber-800">
+                        {{ $upcomingPayments->count() }} rent payment{{ $upcomingPayments->count() !== 1 ? 's' : '' }} due within the next 7 days
+                    </p>
+                    <p class="text-xs text-amber-600">Send control numbers now so tenants can pay on time</p>
+                </div>
+            </div>
+            <a href="{{ route('landlord.payments.index', ['filter' => 'upcoming']) }}"
+               class="flex-shrink-0 text-xs font-semibold text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                Manage →
+            </a>
+        </div>
+        <div class="space-y-1.5">
+            @foreach($upcomingPayments->take(4) as $up)
+            <div class="flex items-center justify-between text-xs bg-white rounded-lg px-3 py-2 border border-amber-100">
+                <div class="flex items-center gap-2">
+                    <span class="font-medium text-gray-800">{{ $up->tenant?->name ?? '—' }}</span>
+                    <span class="text-gray-400">·</span>
+                    <span class="text-gray-500">{{ optional(optional($up->lease)->property)->name }}{{ optional(optional($up->lease)->unit)->unit_number ? ' / ' . optional(optional($up->lease)->unit)->unit_number : '' }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-gray-700 font-semibold">TZS {{ number_format($up->amount, 0) }}</span>
+                    <span class="{{ $up->due_date->isToday() || $up->due_date->isPast() ? 'text-red-600' : 'text-amber-700' }} font-medium">
+                        {{ $up->due_date->isToday() ? 'Today' : ($up->due_date->isTomorrow() ? 'Tomorrow' : $up->due_date->format('d M')) }}
+                    </span>
+                    @if(empty($up->control_number))
+                        <span class="text-amber-500 font-medium">No control #</span>
+                    @else
+                        <span class="text-green-600 font-mono">{{ $up->control_number }}</span>
+                    @endif
+                </div>
+            </div>
+            @endforeach
+            @if($upcomingPayments->count() > 4)
+                <p class="text-xs text-amber-600 text-center pt-1">+ {{ $upcomingPayments->count() - 4 }} more payments</p>
+            @endif
+        </div>
+    </div>
+    @endif
 
     {{-- ===== STAT CARDS ===== --}}
     <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -207,11 +265,18 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 (function() {
     const months = @json($chartData['months']);
     const income  = @json($chartData['income']);
     const expenses = @json($chartData['expenses']);
+
+    // Destroy any existing Chart.js instances before re-creating (handles AJAX navigation)
+    ['incomeExpensesChart', 'collectionChart'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && window.Chart) { const c = Chart.getChart(el); if (c) c.destroy(); }
+    });
 
     // Income vs Expenses area chart
     new Chart(document.getElementById('incomeExpensesChart'), {
