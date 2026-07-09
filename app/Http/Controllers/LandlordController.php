@@ -463,7 +463,7 @@ class LandlordController extends Controller
             $date      = $lease->terminated_at->format('d M Y');
             $firstName = explode(' ', $lease->tenant->name)[0];
             $message   = "Hi {$firstName}, your lease at {$property} has been terminated effective {$date}. "
-                       . "Reason: {$reason}. Login to REMIS for details: {$loginUrl}";
+                       . "Reason: {$reason}. Login to REMIS for details: {$this->smsLoginUrl()}";
             return app(BriqSmsService::class)->send($lease->tenant->phone, $message);
         }
 
@@ -1035,7 +1035,7 @@ class LandlordController extends Controller
             if (empty($tenant->phone)) {
                 // No phone — fall through to email silently
             } else {
-                $message = $this->buildSmsInvitation($tenant, $plainPassword, $loginUrl);
+                $message = $this->buildSmsInvitation($tenant, $plainPassword, $this->smsLoginUrl());
                 $smsResult = app(BriqSmsService::class)->send($tenant->phone, $message);
                 if ($smsResult['success']) {
                     return $smsResult;
@@ -1066,6 +1066,50 @@ class LandlordController extends Controller
              . "Password: {$plainPassword}\n"
              . "Login: {$loginUrl}\n"
              . "Please change your password after first login.";
+    }
+
+    /**
+     * Build a login link the recipient can actually open. APP_URL is
+     * "http://localhost/..." on dev machines, which no phone can resolve —
+     * carriers silently drop SMS containing such a dead link. Substitute
+     * this machine's real LAN IP instead, so anyone on the same network
+     * (e.g. same office/property WiFi) can open it from their phone.
+     */
+    private function smsLoginUrl(): string
+    {
+        $appUrl = rtrim(config('app.url'), '/');
+        $parsed = parse_url($appUrl);
+        $host   = $parsed['host'] ?? 'localhost';
+
+        if ($host === 'localhost' || $host === '127.0.0.1') {
+            $lanIp = $this->detectLanIp();
+            if ($lanIp) {
+                $scheme = $parsed['scheme'] ?? 'http';
+                $path   = $parsed['path'] ?? '';
+                return "{$scheme}://{$lanIp}{$path}/#login";
+            }
+        }
+
+        return $appUrl . '/#login';
+    }
+
+    /**
+     * Determine this machine's outbound LAN IP by "connecting" a UDP socket
+     * to an external address (no packets are actually sent) and reading the
+     * local address the OS would route through. More reliable than
+     * gethostbyname(gethostname()), which can return an unrelated adapter
+     * (e.g. a VPN or VirtualBox host-only IP) on multi-NIC machines.
+     */
+    private function detectLanIp(): ?string
+    {
+        $sock = @stream_socket_client('udp://8.8.8.8:53', $errno, $errstr, 1);
+        if (!$sock) {
+            return null;
+        }
+        $name = stream_socket_get_name($sock, false);
+        fclose($sock);
+
+        return $name ? explode(':', $name)[0] : null;
     }
 
     // ─────────────────────── MAINTENANCE ─────────────────────
