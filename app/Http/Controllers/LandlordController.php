@@ -111,8 +111,8 @@ class LandlordController extends Controller
 
         $stats = [
             'total'    => $properties->count(),
-            'occupied' => $properties->where('status', 'occupied')->count(),
-            'available'=> $properties->where('status', 'available')->count(),
+            'occupied' => $properties->filter(fn ($p) => $p->activeLease && $p->activeLease->tenant)->count(),
+            'available'=> $properties->filter(fn ($p) => ! $p->activeLease || ! $p->activeLease->tenant)->count(),
         ];
 
         return view('landlord.properties.index', compact('properties', 'stats'));
@@ -639,7 +639,11 @@ class LandlordController extends Controller
             })->count(),
         ];
 
-        return view('landlord.tenants.index', compact('tenants', 'stats'));
+        $showFoRecommendation = $stats['active'] > 3
+            && ! $landlord->hasActiveFinancialOfficer()
+            && ! $landlord->preference('fo_recommendation_dismissed', false);
+
+        return view('landlord.tenants.index', compact('tenants', 'stats', 'showFoRecommendation'));
     }
 
     public function tenantsShow(User $user)
@@ -791,8 +795,159 @@ class LandlordController extends Controller
             }
         }
 
+        // FO recommendation: prompt when active tenants exceed 3 and no active FO exists
+        $activeTenantCount = User::where('role', 'tenant')
+            ->where('landlord_id', Auth::id())
+            ->where('tenant_status', 'active')
+            ->count();
+
+        $foRecommend = $activeTenantCount > 3
+            && ! Auth::user()->hasActiveFinancialOfficer()
+            && ! Auth::user()->preference('fo_recommendation_dismissed', false);
+
         return redirect()->route('landlord.tenants.index')
-                         ->with('success', 'Tenant added and invitation ' . $channelLabel . ' sent.');
+                         ->with('success', 'Tenant added and invitation ' . $channelLabel . ' sent.')
+                         ->with('fo_recommendation', $foRecommend);
+    }
+
+    // ─────────────────────── FINANCIAL OFFICER MANAGEMENT ─────────────────
+
+    public function foIndex()
+    {
+        $officers    = User::where('role', 'financial_officer')
+            ->where('landlord_id', Auth::id())
+            ->latest()
+            ->get();
+        $propertyIds = Auth::user()->properties()->pluck('id');
+
+        foreach ($officers as $fo) {
+            $fo->paymentsVerified = Payment::where('fo_verified_by', $fo->id)->count();
+            $fo->totalCollected   = (float) Payment::where('fo_verified_by', $fo->id)->where('status', 'paid')->sum('amount');
+        }
+
+        $summary = [
+            'collected' => (float) Payment::whereHas('lease', fn($q) => $q->whereIn('property_id', $propertyIds))
+                ->where('status', 'paid')->whereMonth('paid_date', now()->month)->whereYear('paid_date', now()->year)->sum('amount'),
+            'pending'   => Payment::whereHas('lease', fn($q) => $q->whereIn('property_id', $propertyIds))->where('status', 'pending')->count(),
+            'overdue'   => Payment::whereHas('lease', fn($q) => $q->whereIn('property_id', $propertyIds))->where('status', 'overdue')->count(),
+            'verified'  => Payment::whereHas('lease', fn($q) => $q->whereIn('property_id', $propertyIds))->whereNotNull('fo_verified_by')->whereMonth('paid_date', now()->month)->count(),
+        ];
+
+        return view('landlord.financial-officer.index', compact('officers', 'summary'));
+    }
+
+    public function foCreate()
+    {
+        return view('landlord.financial-officer.create');
+    }
+
+    public function foStore(Request $request)
+    {
+        $validated = $request->validate([
+            'name'  => 'required|string|max:100',
+            'email' => 'required|email|unique:users,email',
+            'phone' => 'nullable|string|max:20',
+        ]);
+
+        $plain = $this->generateSimplePassword();
+
+        $fo = User::create([
+            'name'                  => $validated['name'],
+            'email'                 => $validated['email'],
+            'phone'                 => $validated['phone'] ?? null,
+            'role'                  => 'financial_officer',
+            'password'              => Hash::make($plain),
+            'landlord_id'           => Auth::id(),
+            'tenant_status'         => 'active',
+            'force_password_change' => true,
+            'default_password_hint' => $plain,
+            'invitation_status'     => 'invited',
+        ]);
+
+        // Send invitation email
+        $loginUrl = rtrim(url('/'), '/') . '/#login';
+        try {
+            Mail::to($fo->email)->send(new \App\Mail\FoInvitation($fo, $plain, $loginUrl));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('FO invitation email failed', ['error' => $e->getMessage()]);
+        }
+
+        // Dismiss the FO recommendation once one is created
+        $prefs = Auth::user()->preferences ?? [];
+        $prefs['fo_recommendation_dismissed'] = true;
+        Auth::user()->update(['preferences' => $prefs]);
+
+        return redirect()->route('landlord.fo.index')
+                         ->with('success', 'Financial Officer account created and invitation sent to ' . $fo->email . '.');
+    }
+
+    public function foEdit(User $fo)
+    {
+        abort_if($fo->landlord_id !== Auth::id() || ! $fo->isFinancialOfficer(), 403);
+        return view('landlord.financial-officer.edit', compact('fo'));
+    }
+
+    public function foUpdate(Request $request, User $fo)
+    {
+        abort_if($fo->landlord_id !== Auth::id() || ! $fo->isFinancialOfficer(), 403);
+
+        $validated = $request->validate([
+            'name'  => 'required|string|max:100',
+            'email' => 'required|email|unique:users,email,' . $fo->id,
+            'phone' => 'nullable|string|max:20',
+        ]);
+
+        $fo->update($validated);
+        return redirect()->route('landlord.fo.index')->with('success', 'Financial Officer updated.');
+    }
+
+    public function foToggle(User $fo)
+    {
+        abort_if($fo->landlord_id !== Auth::id() || ! $fo->isFinancialOfficer(), 403);
+
+        $newStatus = $fo->tenant_status === 'active' ? 'inactive' : 'active';
+        $fo->update(['tenant_status' => $newStatus]);
+
+        $label = $newStatus === 'active' ? 'activated' : 'deactivated';
+        return back()->with('success', "Financial Officer account {$label}.");
+    }
+
+    public function foDestroy(User $fo)
+    {
+        abort_if($fo->landlord_id !== Auth::id() || ! $fo->isFinancialOfficer(), 403);
+        $fo->delete();
+        return redirect()->route('landlord.fo.index')->with('success', 'Financial Officer removed.');
+    }
+
+    public function foResendInvitation(User $fo)
+    {
+        abort_if($fo->landlord_id !== Auth::id() || ! $fo->isFinancialOfficer(), 403);
+
+        $plain = $this->generateSimplePassword();
+        $fo->update([
+            'password'              => Hash::make($plain),
+            'force_password_change' => true,
+            'default_password_hint' => $plain,
+            'invitation_status'     => 'invited',
+        ]);
+
+        $loginUrl = rtrim(url('/'), '/') . '/#login';
+        try {
+            Mail::to($fo->email)->send(new \App\Mail\FoInvitation($fo, $plain, $loginUrl));
+        } catch (\Exception $e) {
+            Log::warning('FO resend invitation failed', ['error' => $e->getMessage()]);
+            return back()->with('error', 'Could not send invitation email: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Invitation email resent to ' . $fo->email . '.');
+    }
+
+    public function foDismissRecommendation()
+    {
+        $prefs = Auth::user()->preferences ?? [];
+        $prefs['fo_recommendation_dismissed'] = true;
+        Auth::user()->update(['preferences' => $prefs]);
+        return redirect()->back();
     }
 
     public function tenantInvite(Request $request, User $user)
@@ -878,17 +1033,27 @@ class LandlordController extends Controller
 
         if ($channel === 'sms') {
             if (empty($tenant->phone)) {
-                return ['success' => false, 'error' => 'Tenant has no phone number on record.'];
+                // No phone — fall through to email silently
+            } else {
+                $message = $this->buildSmsInvitation($tenant, $plainPassword, $loginUrl);
+                $smsResult = app(BriqSmsService::class)->send($tenant->phone, $message);
+                if ($smsResult['success']) {
+                    return $smsResult;
+                }
+                // SMS failed — fall back to email below
+                \Illuminate\Support\Facades\Log::warning('SMS invitation failed, falling back to email', [
+                    'tenant' => $tenant->id,
+                    'error'  => $smsResult['error'] ?? 'unknown',
+                ]);
             }
-            $message = $this->buildSmsInvitation($tenant, $plainPassword, $loginUrl);
-            return app(BriqSmsService::class)->send($tenant->phone, $message);
         }
 
+        // Email path (primary or fallback)
         try {
             Mail::to($tenant->email)->send(new TenantInvitation($tenant, $plainPassword, $loginUrl));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Tenant invitation email failed', ['error' => $e->getMessage()]);
-            return ['success' => false, 'error' => 'Email could not be sent. Please check your mail configuration.'];
+            return ['success' => false, 'error' => 'Invitation could not be sent. Please check your mail configuration.'];
         }
         return ['success' => true];
     }

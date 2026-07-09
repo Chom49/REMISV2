@@ -79,7 +79,7 @@
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
         {{-- Top section: avatar + info + actions --}}
-        <div class="px-7 pt-7 pb-6">
+        <div class="px-10 pb-8" style="padding-top: 36px;">
             <div class="flex flex-col sm:flex-row sm:items-start gap-5">
 
                 {{-- Avatar --}}
@@ -123,27 +123,6 @@
 
                 {{-- Action buttons --}}
                 <div class="flex flex-wrap items-center gap-2 flex-shrink-0 self-start">
-                    @if($activeLease)
-                    <button onclick="openRenewModal({{ $activeLease->id }}, '{{ $activeLease->end_date->format('Y-m-d') }}', {{ $activeLease->monthly_rent }})"
-                            class="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100
-                                   text-emerald-700 font-semibold px-3.5 py-2 rounded-xl text-xs
-                                   border border-emerald-200 transition-all">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                        </svg>
-                        Renew
-                    </button>
-                    <button onclick="openTerminateModal({{ $activeLease->id }}, '{{ addslashes($tenant->name) }}')"
-                            class="inline-flex items-center gap-1.5 bg-red-50 hover:bg-red-100
-                                   text-red-700 font-semibold px-3.5 py-2 rounded-xl text-xs
-                                   border border-red-200 transition-all">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                        Terminate
-                    </button>
-                    @endif
 
                     <a href="{{ route('landlord.tenants.edit', $tenant) }}"
                        class="inline-flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100

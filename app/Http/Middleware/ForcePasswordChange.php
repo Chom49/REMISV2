@@ -13,9 +13,12 @@ class ForcePasswordChange
         $user = Auth::user();
 
         if ($user && $user->force_password_change) {
-            // Allow access to the change-password page and logout — nothing else
-            if (! $request->routeIs('tenant.password.change', 'tenant.password.update', 'logout')) {
-                return redirect()->route('tenant.password.change')
+            $allowed = ['tenant.password.change', 'tenant.password.update',
+                        'fo.password.change', 'fo.password.update', 'logout'];
+
+            if (! $request->routeIs(...$allowed)) {
+                $route = $user->isFinancialOfficer() ? 'fo.password.change' : 'tenant.password.change';
+                return redirect()->route($route)
                     ->with('warning', 'You must set a new password before continuing.');
             }
         }

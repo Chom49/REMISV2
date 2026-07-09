@@ -60,6 +60,8 @@ return [
     | BRIQ_BASE_URL     – BRIQ API base URL (default: https://karibu.briq.tz)
     | BRIQ_SENDER_ID    – Sender name displayed on recipient's phone
     | BRIQ_BEARER_TOKEN – Optional bearer token, only if your BRIQ app requires it
+    | BRIQ_APP_KEY      – Developer App Key (briq_...), required only by BRIQ's
+    |                     OTP endpoint (v1/otp/request); not used for bulk SMS.
     |--------------------------------------------------------------------------
     */
     'briq' => [
@@ -67,6 +69,32 @@ return [
         'base_url'     => env('BRIQ_BASE_URL', 'https://karibu.briq.tz'),
         'sender_id'    => env('BRIQ_SENDER_ID', 'BRIQ'),
         'bearer_token' => env('BRIQ_BEARER_TOKEN', ''),
+        'app_key'      => env('BRIQ_APP_KEY', ''),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | NMB SPG (Zalongwa Payment Gateway) — NMB Bank Tanzania
+    |--------------------------------------------------------------------------
+    | NMB_SPG_URL     – Base URL of the Zalongwa SPG server
+    | NMB_SPG_USER    – client_usr credential (email)     ← .env only, never commit
+    | NMB_SPG_KEY     – client_key credential (password)  ← .env only, never commit
+    | NMB_SYSTEM_NAME – System name registered on the SPG (e.g. REMIS)
+    | NMB_SYSTEM_CODE – System code assigned by Zalongwa  (e.g. SP1001)
+    | NMB_SPG_TIMEOUT – HTTP timeout in seconds (default 20)
+    | NMB_CA_BUNDLE   – Absolute path to a CA bundle PEM, or leave blank to
+    |                   let PHP/curl use curl.cainfo from php.ini (system default)
+    |--------------------------------------------------------------------------
+    */
+    'nmb' => [
+        'base_url'    => env('NMB_SPG_URL', 'https://xyz.spg.co.tz'),
+        'client_usr'  => env('NMB_SPG_USER', ''),
+        'client_key'  => env('NMB_SPG_KEY', ''),
+        'system_name' => env('NMB_SYSTEM_NAME', 'REMIS'),
+        'system_code' => env('NMB_SYSTEM_CODE', 'SP1001'),
+        'timeout'     => (int) env('NMB_SPG_TIMEOUT', 20),
+        // null = fall back to curl.cainfo in php.ini (system CA bundle)
+        'ca_bundle'   => env('NMB_CA_BUNDLE') ?: null,
     ],
 
 ];

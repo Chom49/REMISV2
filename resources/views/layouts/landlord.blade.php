@@ -72,6 +72,17 @@
                 Leases
             </a>
 
+            @if(Auth::user()->hasActiveFinancialOfficer())
+            {{-- Financial Officer module replaces Payments when FO is active --}}
+            <a href="{{ route('landlord.fo.index') }}"
+               class="sidebar-link {{ request()->routeIs('landlord.fo.*') ? 'sidebar-link-active' : '' }}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                Financial Officer
+            </a>
+            @else
             <a href="{{ route('landlord.payments.index') }}"
                class="sidebar-link {{ request()->routeIs('landlord.payments.*') ? 'sidebar-link-active' : '' }}">
                 <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,6 +91,7 @@
                 </svg>
                 Payments
             </a>
+            @endif
 
             <a href="{{ route('landlord.reports.index') }}"
                class="sidebar-link {{ request()->routeIs('landlord.reports.*') ? 'sidebar-link-active' : '' }}">
@@ -152,7 +164,7 @@
                 </button>
 
                 {{-- Notifications --}}
-                <a href="{{ route('landlord.payments.index', ['filter' => 'upcoming']) }}"
+                <a href="{{ Auth::user()->hasActiveFinancialOfficer() ? route('landlord.fo.index') : route('landlord.payments.index', ['filter' => 'upcoming']) }}"
                    class="p-2 rounded-lg text-gray-500 hover:bg-gray-100 relative" aria-label="Upcoming Payments">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -167,7 +179,7 @@
                             ->where('due_date', '>=', now()->subDays(1))
                             ->count();
                     @endphp
-                    @if($upcomingBadge > 0)
+                    @if($upcomingBadge > 0 && !Auth::user()->hasActiveFinancialOfficer())
                         <span class="absolute top-1 right-1 flex items-center justify-center w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full leading-none">
                             {{ $upcomingBadge > 9 ? '9+' : $upcomingBadge }}
                         </span>

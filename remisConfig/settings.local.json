@@ -28,7 +28,12 @@
       "Bash(php composer.phar show barryvdh/laravel-dompdf)",
       "Bash(composer show *)",
       "Bash(where composer *)",
-      "Bash(composer require *)"
+      "Bash(composer require *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\),**d.get\\('devDependencies',{}\\)}.items\\(\\)]\")",
+      "Bash(php c:/xampp/htdocs/RemisV2/artisan make:migration add_financial_officer_role_to_users_table)",
+      "Bash(php c:/xampp/htdocs/RemisV2/artisan migrate)",
+      "Bash(php c:/xampp/htdocs/RemisV2/artisan make:migration add_fo_verified_by_to_payments_table)",
+      "Bash(php c:/xampp/htdocs/RemisV2/artisan make:controller FinancialOfficerController)"
     ],
     "additionalDirectories": [
       "c:\\xampp\\apache\\conf\\extra",

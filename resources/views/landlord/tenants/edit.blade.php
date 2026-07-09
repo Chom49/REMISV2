@@ -49,7 +49,16 @@
                 </div>
             @endif
 
-            {{-- Name --}}
+            {{-- Name fields (locked for TIN-verified tenants) --}}
+            @if($user->tin)
+            <div class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+                <svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 15v2m0-6v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                </svg>
+                <span>Name and TIN were verified via the TRA system and <strong>cannot be changed</strong>. You can still update the contact details below.</span>
+            </div>
+            @else
             <div class="grid sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -74,6 +83,10 @@
                                   @error('last_name') border-red-400 @enderror">
                 </div>
             </div>
+            @endif
+
+            {{-- Section label for editable contact fields --}}
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide pt-1">Contact Details</p>
 
             {{-- Phone --}}
             <div>
@@ -99,11 +112,15 @@
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Nationality</label>
-                    <input type="text" name="nationality"
-                           value="{{ old('nationality', $user->nationality) }}"
-                           placeholder="e.g. Tanzanian"
-                           class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900
-                                  focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 transition">
+                    @php $nationalities = ['Afghan','Albanian','Algerian','American','Andorran','Angolan','Antiguan','Argentine','Armenian','Australian','Austrian','Azerbaijani','Bahamian','Bahraini','Bangladeshi','Barbadian','Belarusian','Belgian','Belizean','Beninese','Bhutanese','Bolivian','Bosnian','Botswanan','Brazilian','British','Bruneian','Bulgarian','Burkinabe','Burundian','Cambodian','Cameroonian','Canadian','Cape Verdean','Central African','Chadian','Chilean','Chinese','Colombian','Comoran','Congolese','Costa Rican','Croatian','Cuban','Cypriot','Czech','Danish','Djiboutian','Dominican','Dutch','East Timorese','Ecuadorian','Egyptian','Emirati','Equatorial Guinean','Eritrean','Estonian','Eswatini','Ethiopian','Fijian','Finnish','French','Gabonese','Gambian','Georgian','German','Ghanaian','Greek','Grenadian','Guatemalan','Guinean','Guinea-Bissauan','Guyanese','Haitian','Honduran','Hungarian','Icelandic','Indian','Indonesian','Iranian','Iraqi','Irish','Israeli','Italian','Ivorian','Jamaican','Japanese','Jordanian','Kazakhstani','Kenyan','Kiribatian','Kuwaiti','Kyrgyzstani','Laotian','Latvian','Lebanese','Lesothan','Liberian','Libyan','Liechtensteiner','Lithuanian','Luxembourger','Macedonian','Malagasy','Malawian','Malaysian','Maldivian','Malian','Maltese','Marshallese','Mauritanian','Mauritian','Mexican','Micronesian','Moldovan','Monegasque','Mongolian','Montenegrin','Moroccan','Mozambican','Namibian','Nauruan','Nepalese','New Zealander','Nicaraguan','Nigerian','Nigerien','North Korean','Norwegian','Omani','Pakistani','Palauan','Palestinian','Panamanian','Papua New Guinean','Paraguayan','Peruvian','Filipino','Polish','Portuguese','Qatari','Romanian','Russian','Rwandan','Saint Lucian','Salvadoran','Samoan','Saudi Arabian','Senegalese','Serbian','Seychellois','Sierra Leonean','Singaporean','Slovak','Slovenian','Solomon Islander','Somali','South African','South Korean','South Sudanese','Spanish','Sri Lankan','Sudanese','Surinamese','Swedish','Swiss','Syrian','São Toméan','Taiwanese','Tajikistani','Tanzanian','Thai','Togolese','Tongan','Trinidadian','Tunisian','Turkish','Turkmen','Tuvaluan','Ugandan','Ukrainian','Uruguayan','Uzbekistani','Vanuatuan','Venezuelan','Vietnamese','Yemeni','Zambian','Zimbabwean']; @endphp
+                    <select name="nationality"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900
+                                   focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 transition">
+                        <option value="">Select nationality…</option>
+                        @foreach($nationalities as $nat)
+                        <option value="{{ $nat }}" {{ old('nationality', $user->nationality) === $nat ? 'selected' : '' }}>{{ $nat }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
 
@@ -116,8 +133,12 @@
                 </div>
                 @if($user->tin)
                 <div class="flex items-center justify-between">
+                    <span>Full Name</span>
+                    <span class="font-medium text-gray-700">{{ $user->name }}</span>
+                </div>
+                <div class="flex items-center justify-between">
                     <span>TIN</span>
-                    <span class="font-medium text-gray-700">{{ $user->tin }}</span>
+                    <span class="font-medium text-gray-700 font-mono">{{ $user->tin }}</span>
                 </div>
                 @endif
             </div>

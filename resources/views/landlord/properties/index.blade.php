@@ -116,9 +116,18 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4">
+                                @php
+                                    if ($property->status === 'maintenance') {
+                                        $displayStatus = 'maintenance';
+                                    } elseif ($property->activeLease && $property->activeLease->tenant) {
+                                        $displayStatus = 'occupied';
+                                    } else {
+                                        $displayStatus = 'vacant';
+                                    }
+                                @endphp
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
-                                    {{ $property->status === 'occupied' ? 'bg-green-100 text-green-700' : ($property->status === 'available' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-700') }}">
-                                    {{ $property->status === 'available' ? 'Vacant' : ucfirst($property->status) }}
+                                    {{ $displayStatus === 'occupied' ? 'bg-green-100 text-green-700' : ($displayStatus === 'maintenance' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600') }}">
+                                    {{ ucfirst($displayStatus) }}
                                 </span>
                             </td>
                         </tr>

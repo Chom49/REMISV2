@@ -77,23 +77,13 @@
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
             <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Financial Terms</h2>
 
-            <div class="grid sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">
-                        Monthly Rent <span class="text-gray-400 font-normal">(Tshs)</span> <span class="text-red-400">*</span>
-                    </label>
-                    <input type="number" name="monthly_rent" value="{{ old('monthly_rent') }}" min="0" step="0.01" required
-                           class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition text-sm"
-                           placeholder="300,000">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">
-                        Security Deposit <span class="text-gray-400 font-normal">(Tshs)</span>
-                    </label>
-                    <input type="number" name="security_deposit" value="{{ old('security_deposit', 0) }}" min="0" step="0.01"
-                           class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition text-sm"
-                           placeholder="0">
-                </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                    Monthly Rent <span class="text-gray-400 font-normal">(Tshs)</span> <span class="text-red-400">*</span>
+                </label>
+                <input type="number" name="monthly_rent" value="{{ old('monthly_rent') }}" min="0" step="0.01" required
+                       class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none transition text-sm"
+                       placeholder="300,000">
             </div>
 
             <div class="grid sm:grid-cols-2 gap-4">

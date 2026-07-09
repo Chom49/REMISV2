@@ -20,7 +20,8 @@
         <h1 class="text-2xl font-bold text-gray-900">Hello {{ explode(' ', $landlord->name)[0] }}</h1>
     </div>
 
-    {{-- ===== UPCOMING PAYMENT NOTIFICATION ===== --}}
+    {{-- ===== UPCOMING PAYMENT NOTIFICATION (hidden when FO is active) ===== --}}
+    @if(!$landlord->hasActiveFinancialOfficer())
     @php
         $propIds = $landlord->properties()->pluck('id');
         $upcomingPayments = \App\Models\Payment::whereHas('lease', fn($q) => $q->whereIn('property_id', $propIds))
@@ -80,6 +81,7 @@
         </div>
     </div>
     @endif
+    @endif {{-- hasActiveFinancialOfficer --}}
 
     {{-- ===== STAT CARDS ===== --}}
     <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">

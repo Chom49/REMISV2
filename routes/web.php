@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\FinancialOfficerController;
 use App\Http\Controllers\LandlordController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\PaymentController;
@@ -115,6 +116,17 @@ Route::middleware(['auth', 'role:landlord', 'locked'])->prefix('landlord')->name
     Route::post('/settings/notifications',       [LandlordController::class, 'settingsUpdateNotifications'])->name('settings.notifications');
     Route::post('/settings/preferences',         [LandlordController::class, 'settingsUpdatePreferences'])->name('settings.preferences');
     Route::delete('/settings/picture',           [LandlordController::class, 'settingsRemovePicture'])->name('settings.remove-picture');
+
+    // ─── Financial Officer management ────────────────────────────
+    Route::get('/financial-officer',                          [LandlordController::class, 'foIndex'])->name('fo.index');
+    Route::get('/financial-officer/create',                   [LandlordController::class, 'foCreate'])->name('fo.create');
+    Route::post('/financial-officer',                         [LandlordController::class, 'foStore'])->name('fo.store');
+    Route::get('/financial-officer/{fo}/edit',                [LandlordController::class, 'foEdit'])->name('fo.edit');
+    Route::patch('/financial-officer/{fo}',                   [LandlordController::class, 'foUpdate'])->name('fo.update');
+    Route::post('/financial-officer/{fo}/toggle',             [LandlordController::class, 'foToggle'])->name('fo.toggle');
+    Route::delete('/financial-officer/{fo}',                  [LandlordController::class, 'foDestroy'])->name('fo.destroy');
+    Route::post('/financial-officer/dismiss-recommendation',  [LandlordController::class, 'foDismissRecommendation'])->name('fo.dismiss-recommendation');
+    Route::post('/financial-officer/{fo}/resend-invitation',  [LandlordController::class, 'foResendInvitation'])->name('fo.resend-invitation');
 });
 
 // ─────────────────────── ADMIN ───────────────────────────────
@@ -140,6 +152,31 @@ Route::middleware(['auth', 'role:admin', 'locked'])->prefix('admin')->name('admi
     Route::get('/users',                          [AdminController::class, 'usersIndex'])->name('users.index');
     Route::patch('/users/{user}/role',            [AdminController::class, 'usersUpdateRole'])->name('users.update-role');
     Route::delete('/users/{user}',                [AdminController::class, 'usersDestroy'])->name('users.destroy');
+});
+
+// ─────────────────────── FINANCIAL OFFICER ───────────────────
+Route::middleware(['auth', 'role:financial_officer', 'force.password.change', 'locked'])->prefix('fo')->name('fo.')->group(function () {
+
+    Route::get('/dashboard', [FinancialOfficerController::class, 'dashboard'])->name('dashboard');
+
+    // Forced password change
+    Route::get('/change-password',  [FinancialOfficerController::class, 'changePasswordShow'])->name('password.change');
+    Route::post('/change-password', [FinancialOfficerController::class, 'changePasswordUpdate'])->name('password.update');
+
+    // Payments
+    Route::get('/payments',                              [FinancialOfficerController::class, 'paymentsIndex'])->name('payments.index');
+    Route::post('/payments/{payment}/generate',          [FinancialOfficerController::class, 'generateControlNumber'])->name('payments.generate');
+    Route::post('/payments/{payment}/send',              [FinancialOfficerController::class, 'sendControlNumber'])->name('payments.send');
+    Route::get('/payments/{payment}/status',             [FinancialOfficerController::class, 'checkStatus'])->name('payments.status');
+    Route::post('/payments/{payment}/mark-paid',         [FinancialOfficerController::class, 'markPaid'])->name('payments.mark-paid');
+
+    // Reports
+    Route::get('/reports', [FinancialOfficerController::class, 'reportsIndex'])->name('reports.index');
+
+    // Settings
+    Route::get('/settings',               [FinancialOfficerController::class, 'settingsIndex'])->name('settings.index');
+    Route::post('/settings/profile',      [FinancialOfficerController::class, 'settingsUpdateProfile'])->name('settings.profile');
+    Route::post('/settings/password',     [FinancialOfficerController::class, 'settingsUpdatePassword'])->name('settings.password');
 });
 
 // ─────────────────────── TENANT ──────────────────────────────
