@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = ['name', 'email', 'phone', 'role', 'password', 'landlord_id', 'tenant_status',
                            'tin', 'nida_number', 'gender', 'nationality',
@@ -43,6 +44,18 @@ class User extends Authenticatable
     public function hasActiveFinancialOfficer(): bool
     {
         return $this->financialOfficers()->where('tenant_status', 'active')->exists();
+    }
+
+    public function shouldRecommendFinancialOfficer(): bool
+    {
+        if ($this->hasActiveFinancialOfficer() || $this->preference('fo_recommendation_dismissed', false)) {
+            return false;
+        }
+
+        return $this->createdTenants()
+            ->where('role', 'tenant')
+            ->where('tenant_status', 'active')
+            ->count() > 3;
     }
 
     public function properties()          { return $this->hasMany(Property::class, 'landlord_id'); }

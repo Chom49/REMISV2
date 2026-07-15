@@ -31,7 +31,7 @@
             </div>
             <div>
                 <h2 class="font-bold text-gray-900">New Financial Officer Account</h2>
-                <p class="text-xs text-gray-400">The FO will receive an email invitation to set their password.</p>
+                <p class="text-xs text-gray-400">The FO will receive an invitation to set their password.</p>
             </div>
         </div>
 
@@ -59,8 +59,10 @@
                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
             </div>
 
+            @include('landlord.financial-officer._channel_picker', ['formId' => 'create'])
+
             <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm text-indigo-700">
-                <strong>Note:</strong> The FO account will be created with a temporary password. They will be required to set a new password on first login. An invitation email will be sent automatically.
+                <strong>Note:</strong> The FO account will be created with a temporary password. They will be required to set a new password on first login. An invitation will be sent automatically via the selected channel.
             </div>
 
             <div class="flex gap-3 pt-2">

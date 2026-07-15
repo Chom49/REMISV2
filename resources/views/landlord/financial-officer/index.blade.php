@@ -86,20 +86,38 @@
             </div>
 
             {{-- Resend invitation --}}
-            <form method="POST" action="{{ route('landlord.fo.resend-invitation', $fo) }}"
-                  class="mb-2"
-                  onsubmit="return confirm('Resend invitation email to {{ addslashes($fo->email) }}? A new temporary password will be generated.')">
-                @csrf
-                <button type="submit"
-                        class="w-full inline-flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100
-                               text-indigo-700 border border-indigo-200 text-xs font-semibold px-3 py-2 rounded-xl transition">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                    </svg>
-                    Resend Invitation Email
-                </button>
-            </form>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Resend Invitation</p>
+            <div class="flex gap-2 mb-2">
+                <form method="POST" action="{{ route('landlord.fo.resend-invitation', $fo) }}" class="flex-1"
+                      onsubmit="return confirm('Resend invitation email to {{ addslashes($fo->email) }}? A new temporary password will be generated.')">
+                    @csrf
+                    <input type="hidden" name="channel" value="email">
+                    <button type="submit"
+                            class="w-full inline-flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100
+                                   text-indigo-700 border border-indigo-200 text-xs font-semibold px-3 py-2 rounded-xl transition">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                        Email
+                    </button>
+                </form>
+                <form method="POST" action="{{ route('landlord.fo.resend-invitation', $fo) }}" class="flex-1"
+                      onsubmit="return confirm('Resend invitation via SMS to {{ addslashes($fo->phone ?? '') }}? A new temporary password will be generated.')">
+                    @csrf
+                    <input type="hidden" name="channel" value="sms">
+                    <button type="submit" {{ empty($fo->phone) ? 'disabled title=No phone number on file' : '' }}
+                            class="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100
+                                   text-emerald-700 border border-emerald-200 text-xs font-semibold px-3 py-2 rounded-xl transition
+                                   disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-50">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
+                        </svg>
+                        SMS
+                    </button>
+                </form>
+            </div>
 
             <div class="flex items-center gap-2">
                 <a href="{{ route('landlord.fo.edit', $fo) }}"

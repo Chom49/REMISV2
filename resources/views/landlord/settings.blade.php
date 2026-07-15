@@ -250,6 +250,51 @@
         </form>
     </div>
 
+    {{-- ══ 4. FINANCIAL OFFICER ═════════════════════════════════ --}}
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+            <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </div>
+            <h2 class="text-sm font-bold text-gray-900">Financial Officer</h2>
+        </div>
+
+        <div class="p-6">
+            @if($user->hasActiveFinancialOfficer())
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                        <p class="text-sm text-gray-600">
+                            You have an active Financial Officer managing rent collection and payment verification.
+                        </p>
+                    </div>
+                    <a href="{{ route('landlord.fo.index') }}"
+                       class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700
+                              font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors whitespace-nowrap">
+                        Manage
+                    </a>
+                </div>
+            @else
+                <div class="flex items-center justify-between gap-4">
+                    <p class="text-sm text-gray-600">
+                        Delegate rent collection, control numbers, and payment verification
+                        to a dedicated Financial Officer.
+                    </p>
+                    <a href="{{ route('landlord.fo.create') }}"
+                       class="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white
+                              font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm whitespace-nowrap">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Create Officer
+                    </a>
+                </div>
+            @endif
+        </div>
+    </div>
 
 </div>
 @endsection

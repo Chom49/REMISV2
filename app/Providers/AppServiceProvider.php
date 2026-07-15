@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -20,6 +22,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->clearStaleViteHotFile();
+
+        View::composer('layouts.landlord', function ($view) {
+            $user = Auth::user();
+            $view->with('showFoRecommendation', $user && $user->isLandlord() && $user->shouldRecommendFinancialOfficer());
+        });
     }
 
     private function clearStaleViteHotFile(): void

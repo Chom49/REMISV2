@@ -639,11 +639,7 @@ class LandlordController extends Controller
             })->count(),
         ];
 
-        $showFoRecommendation = $stats['active'] > 3
-            && ! $landlord->hasActiveFinancialOfficer()
-            && ! $landlord->preference('fo_recommendation_dismissed', false);
-
-        return view('landlord.tenants.index', compact('tenants', 'stats', 'showFoRecommendation'));
+        return view('landlord.tenants.index', compact('tenants', 'stats'));
     }
 
     public function tenantsShow(User $user)
@@ -795,19 +791,8 @@ class LandlordController extends Controller
             }
         }
 
-        // FO recommendation: prompt when active tenants exceed 3 and no active FO exists
-        $activeTenantCount = User::where('role', 'tenant')
-            ->where('landlord_id', Auth::id())
-            ->where('tenant_status', 'active')
-            ->count();
-
-        $foRecommend = $activeTenantCount > 3
-            && ! Auth::user()->hasActiveFinancialOfficer()
-            && ! Auth::user()->preference('fo_recommendation_dismissed', false);
-
         return redirect()->route('landlord.tenants.index')
-                         ->with('success', 'Tenant added and invitation ' . $channelLabel . ' sent.')
-                         ->with('fo_recommendation', $foRecommend);
+                         ->with('success', 'Tenant added and invitation ' . $channelLabel . ' sent.');
     }
 
     // ─────────────────────── FINANCIAL OFFICER MANAGEMENT ─────────────────
@@ -844,9 +829,10 @@ class LandlordController extends Controller
     public function foStore(Request $request)
     {
         $validated = $request->validate([
-            'name'  => 'required|string|max:100',
-            'email' => 'required|email|unique:users,email',
-            'phone' => 'nullable|string|max:20',
+            'name'    => 'required|string|max:100',
+            'email'   => 'required|email|unique:users,email',
+            'phone'   => 'nullable|string|max:20',
+            'channel' => 'nullable|in:email,sms',
         ]);
 
         $plain = $this->generateSimplePassword();
@@ -864,21 +850,24 @@ class LandlordController extends Controller
             'invitation_status'     => 'invited',
         ]);
 
-        // Send invitation email
-        $loginUrl = rtrim(url('/'), '/') . '/#login';
-        try {
-            Mail::to($fo->email)->send(new \App\Mail\FoInvitation($fo, $plain, $loginUrl));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('FO invitation email failed', ['error' => $e->getMessage()]);
-        }
+        $channel = $validated['channel'] ?? 'email';
+        $result  = $this->sendFoInvitation($fo, $plain, $channel);
 
         // Dismiss the FO recommendation once one is created
         $prefs = Auth::user()->preferences ?? [];
         $prefs['fo_recommendation_dismissed'] = true;
         Auth::user()->update(['preferences' => $prefs]);
 
+        if (!$result['success']) {
+            return redirect()->route('landlord.fo.index')
+                             ->with('warning', 'Financial Officer account created but invitation could not be sent: ' . $result['error']);
+        }
+
+        $usedSms = $result['channel'] === 'sms';
+        $channelLabel = $usedSms ? 'SMS' : 'email';
+        $recipient    = $usedSms ? $fo->phone : $fo->email;
         return redirect()->route('landlord.fo.index')
-                         ->with('success', 'Financial Officer account created and invitation sent to ' . $fo->email . '.');
+                         ->with('success', 'Financial Officer account created and invitation ' . $channelLabel . ' sent to ' . $recipient . '.');
     }
 
     public function foEdit(User $fo)
@@ -919,9 +908,11 @@ class LandlordController extends Controller
         return redirect()->route('landlord.fo.index')->with('success', 'Financial Officer removed.');
     }
 
-    public function foResendInvitation(User $fo)
+    public function foResendInvitation(Request $request, User $fo)
     {
         abort_if($fo->landlord_id !== Auth::id() || ! $fo->isFinancialOfficer(), 403);
+
+        $channel = $request->input('channel', 'email');
 
         $plain = $this->generateSimplePassword();
         $fo->update([
@@ -931,15 +922,16 @@ class LandlordController extends Controller
             'invitation_status'     => 'invited',
         ]);
 
-        $loginUrl = rtrim(url('/'), '/') . '/#login';
-        try {
-            Mail::to($fo->email)->send(new \App\Mail\FoInvitation($fo, $plain, $loginUrl));
-        } catch (\Exception $e) {
-            Log::warning('FO resend invitation failed', ['error' => $e->getMessage()]);
-            return back()->with('error', 'Could not send invitation email: ' . $e->getMessage());
+        $result = $this->sendFoInvitation($fo, $plain, $channel);
+
+        if (!$result['success']) {
+            return back()->with('error', 'Could not send invitation: ' . $result['error']);
         }
 
-        return back()->with('success', 'Invitation email resent to ' . $fo->email . '.');
+        $usedSms = $result['channel'] === 'sms';
+        $channelLabel = $usedSms ? 'SMS' : 'email';
+        $recipient    = $usedSms ? $fo->phone : $fo->email;
+        return back()->with('success', 'Invitation ' . $channelLabel . ' resent to ' . $recipient . '.');
     }
 
     public function foDismissRecommendation()
@@ -1056,6 +1048,37 @@ class LandlordController extends Controller
             return ['success' => false, 'error' => 'Invitation could not be sent. Please check your mail configuration.'];
         }
         return ['success' => true];
+    }
+
+    private function sendFoInvitation(User $fo, string $plainPassword, string $channel = 'email'): array
+    {
+        $loginUrl = rtrim(url('/'), '/') . '/#login';
+
+        if ($channel === 'sms') {
+            if (empty($fo->phone)) {
+                // No phone — fall through to email silently
+            } else {
+                $message = $this->buildSmsInvitation($fo, $plainPassword, $this->smsLoginUrl());
+                $smsResult = app(BriqSmsService::class)->send($fo->phone, $message);
+                if ($smsResult['success']) {
+                    return $smsResult + ['channel' => 'sms'];
+                }
+                // SMS failed — fall back to email below
+                \Illuminate\Support\Facades\Log::warning('FO SMS invitation failed, falling back to email', [
+                    'fo'    => $fo->id,
+                    'error' => $smsResult['error'] ?? 'unknown',
+                ]);
+            }
+        }
+
+        // Email path (primary or fallback)
+        try {
+            Mail::to($fo->email)->send(new \App\Mail\FoInvitation($fo, $plainPassword, $loginUrl));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('FO invitation email failed', ['error' => $e->getMessage()]);
+            return ['success' => false, 'error' => 'Invitation could not be sent. Please check your mail configuration.'];
+        }
+        return ['success' => true, 'channel' => 'email'];
     }
 
     private function buildSmsInvitation(User $tenant, string $plainPassword, string $loginUrl): string

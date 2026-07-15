@@ -204,6 +204,9 @@
 
         {{-- Page Content --}}
         <main id="main-content" class="flex-1 p-4 sm:p-6 lg:p-8">
+            @unless(request()->routeIs('landlord.fo.*'))
+                @include('landlord.partials.fo-recommendation-banner')
+            @endunless
             @yield('content')
         </main>
 
